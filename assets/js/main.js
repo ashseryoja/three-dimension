@@ -12,7 +12,7 @@
   const TD = window.TD = {
     pointer: { x: 0, y: 0, tx: 0, ty: 0 },          // -1..1, сглаженные (x,y) и целевые (tx,ty)
     drag: { active: false, delta: 0 },              // перетаскивание кресла в hero
-    state: { split: 0.5, splitEff: 0, fabric: 'boucle_pattern', legs: 'ash_black', process: 0, materialLoading: false },
+    state: { split: 0.5, splitEff: 0, fabric: 'boucle_cream', legs: 'walnut', process: 0, materialLoading: false },
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     fine: matchMedia('(hover: hover) and (pointer: fine)').matches,
     sceneFrame: null,
