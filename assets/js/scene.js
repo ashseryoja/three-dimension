@@ -31,6 +31,7 @@ const C = {
    map/gray — цвет (gray — нормированная карта яркости под перекраску цветом color),
    nor/rough/ao — PBR-карты, tile — размер плитки текстуры в метрах.       */
 const FABRICS = {
+  velvet_olive:   { name: 'Оливковый велюр', gray: 'velvet_gray', color: 0x33452a, nor: 'velvet_nor', rough: 'velvet_rough', tile: 0.28, sheen: 1.0, sheenColor: 0x6e8450, sheenRoughness: 0.5, normalScale: 0.7 },
   boucle_cream:   { name: 'Кремовое букле', map: 'boucle_cream', nor: 'boucle_nor', rough: 'boucle_rough', ao: 'boucle_ao', tile: 0.33, sheen: 0.35, normalScale: 1.1 },
   boucle_pattern: { name: 'Букле с узором', map: 'boucle_pattern', mapTile: 1.2, nor: 'boucle_nor', rough: 'boucle_rough', ao: 'boucle_ao', tile: 0.33, sheen: 0.25, normalScale: 1.3 },
   teddy_cream:    { name: 'Кремовый тедди', map: 'teddy_diff', nor: 'teddy_nor', rough: 'teddy_rough', ao: 'teddy_ao', tile: 0.34, sheen: 0.5, normalScale: 1.0 },
@@ -41,6 +42,7 @@ const FABRICS = {
 };
 // дерево: серая карта волокна × точный оттенок, сатиновый лак (clearcoat)
 const FRAMES = {
+  dark_walnut: { name: 'Тёмный орех', gray: 'walnut_gray', color: 0x46291a, nor: 'walnut_nor', rough: 'walnut_rough', tile: 0.6, normalScale: 0.4, roughness: 0.34, clearcoat: 0.38, clearcoatRoughness: 0.28 },
   walnut:     { name: 'Орех', gray: 'walnut_gray', color: 0x5f4a3b, nor: 'walnut_nor', rough: 'walnut_rough', tile: 0.6, normalScale: 0.4, roughness: 0.58, clearcoat: 0.08, clearcoatRoughness: 0.45 },
   smoked_oak: { name: 'Копчёный дуб', gray: 'oak_gray', color: 0x544840, nor: 'oak_nor', rough: 'oak_rough', tile: 0.8, normalScale: 0.45, roughness: 0.62, clearcoat: 0.06, clearcoatRoughness: 0.5 },
   oak_light:  { name: 'Светлый дуб', gray: 'oak_gray', color: 0xc6ad8b, nor: 'oak_nor', rough: 'oak_rough', tile: 0.8, normalScale: 0.45, roughness: 0.6, clearcoat: 0.06, clearcoatRoughness: 0.5 },
@@ -83,27 +85,42 @@ const KF = [
 ];
 const NUM_FIELDS = ['s', 'ry', 'ex', 'wire', 'clip', 'op', 'wc', 'spin', 'osc', 'split'];
 
-/* ---------- геометрия: «протяжка» круглого сечения вдоль кривой ---------- */
+/* ---------- геометрия: «протяжка» сечения вдоль кривой ----------
+   radius(t) → число (круг) или [rN, rB] (полуоси вдоль нормали N и бинормали B);
+   opts.n — показатель суперэллипса сечения (2 — эллипс, 5–6 — брусок со скруглёнными рёбрами);
+   opts.normal — фиксированная нормаль [x,y,z] (для плоских брусков в одной плоскости, без «скрутки»);
+   opts.caps — торцы: 'round' | 'flat' | false для начала и конца.                                  */
 function sweep(points, radius, opts = {}) {
   const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p[0], p[1], p[2])), false, 'centripetal', 0.5);
-  const segs = opts.segments || 40, radial = opts.radial || 18, tile = opts.tile || 0.25, aspect = opts.aspect || 1;
-  const frames = curve.computeFrenetFrames(segs, false);
+  const segs = opts.segments || 40, radial = opts.radial || 18, tile = opts.tile || 0.25, n = opts.n || 2;
   const lengths = curve.getLengths(segs);
+  const fixedN = opts.normal ? new THREE.Vector3(opts.normal[0], opts.normal[1], opts.normal[2]).normalize() : null;
+  const frames = fixedN ? null : curve.computeFrenetFrames(segs, false);
   const pos = [], nor = [], uv = [], idx = [];
-  const rAt = t => (typeof radius === 'function' ? radius(t) : radius);
-  const tmpN = new THREE.Vector3();
+  const rAt = t => { const r = typeof radius === 'function' ? radius(t) : radius; return Array.isArray(r) ? r : [r, r]; };
+  const N = new THREE.Vector3(), B = new THREE.Vector3(), T = new THREE.Vector3(), tmp = new THREE.Vector3();
+  const frameAt = i => {
+    if (frames) { N.copy(frames.normals[i]); B.copy(frames.binormals[i]); T.copy(frames.tangents[i]); return; }
+    T.copy(curve.getTangentAt(i / segs)).normalize();
+    B.crossVectors(T, fixedN).normalize();
+    N.crossVectors(B, T).normalize();
+  };
+  const sePow = (c, e) => Math.sign(c) * Math.pow(Math.abs(c), e);
   for (let i = 0; i <= segs; i++) {
     const t = i / segs;
     const p = curve.getPointAt(t);
-    const rn = rAt(t), rb = rn * aspect;
-    const N = frames.normals[i], B = frames.binormals[i];
+    const [rn, rb] = rAt(t);
+    frameAt(i);
     for (let j = 0; j <= radial; j++) {
       const a = (j / radial) * Math.PI * 2;
-      const sin = Math.sin(a), cos = -Math.cos(a);
-      pos.push(p.x + cos * rn * N.x + sin * rb * B.x, p.y + cos * rn * N.y + sin * rb * B.y, p.z + cos * rn * N.z + sin * rb * B.z);
-      tmpN.set(cos / rn * N.x + sin / rb * B.x, cos / rn * N.y + sin / rb * B.y, cos / rn * N.z + sin / rb * B.z).normalize();
-      nor.push(tmpN.x, tmpN.y, tmpN.z);
-      // волокно вдоль элемента: v — по длине, u — по окружности
+      const c = -Math.cos(a), sn = Math.sin(a);
+      const sx = sePow(c, 2 / n) * rn, sy = sePow(sn, 2 / n) * rb;
+      pos.push(p.x + sx * N.x + sy * B.x, p.y + sx * N.y + sy * B.y, p.z + sx * N.z + sy * B.z);
+      // нормаль суперэллипса: градиент |x/rn|^n + |y/rb|^n
+      const gx = sePow(sx / rn, n - 1) / rn, gy = sePow(sy / rb, n - 1) / rb;
+      tmp.set(gx * N.x + gy * B.x, gx * N.y + gy * B.y, gx * N.z + gy * B.z).normalize();
+      nor.push(tmp.x, tmp.y, tmp.z);
+      // волокно вдоль элемента: v — по длине, u — по периметру сечения
       uv.push((j / radial) * ((Math.PI * (rn + rb)) / tile), lengths[i] / tile);
     }
   }
@@ -117,26 +134,39 @@ function sweep(points, radius, opts = {}) {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   const parts = [g];
-  // скруглённые торцы
-  const caps = opts.caps === undefined ? [true, true] : opts.caps;
+  const caps = opts.caps === undefined ? ['round', 'round'] : opts.caps;
   [0, 1].forEach(end => {
-    if (!caps[end]) return;
+    const kind = caps[end];
+    if (!kind) return;
+    const i = end ? segs : 0;
     const p = curve.getPointAt(end);
-    const r = rAt(end);
-    const s = new THREE.SphereGeometry(r, 18, 12);
-    if (aspect !== 1) {
-      const B = frames.binormals[end ? segs : 0];
-      // вытягиваем сферу вдоль бинормали под эллиптическое сечение
-      const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1));
-      const sc = new THREE.Matrix4().makeScale(1, 1, 1);
-      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().normalize());
-      s.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q.clone().invert()));
-      s.scale(1, aspect, 1);
-      s.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q));
-      void m; void sc;
+    const [rn, rb] = rAt(end);
+    frameAt(i);
+    if (kind === 'round') {
+      const sph = new THREE.SphereGeometry(rn, 18, 12);
+      sph.translate(p.x, p.y, p.z);
+      parts.push(sph);
+      return;
     }
-    s.translate(p.x, p.y, p.z);
-    parts.push(s);
+    // плоский торец: веер от центра, нормаль ±T
+    const cp = [], cn = [], cu = [], ci = [];
+    const sgn = end ? 1 : -1;
+    cp.push(p.x, p.y, p.z); cn.push(sgn * T.x, sgn * T.y, sgn * T.z); cu.push(0.5, 0.5);
+    for (let j = 0; j <= radial; j++) {
+      const a = (j / radial) * Math.PI * 2;
+      const c = -Math.cos(a), sn = Math.sin(a);
+      const sx = sePow(c, 2 / n) * rn, sy = sePow(sn, 2 / n) * rb;
+      cp.push(p.x + sx * N.x + sy * B.x, p.y + sx * N.y + sy * B.y, p.z + sx * N.z + sy * B.z);
+      cn.push(sgn * T.x, sgn * T.y, sgn * T.z);
+      cu.push(0.5 + sx / tile, 0.5 + sy / tile);
+    }
+    for (let j = 0; j < radial; j++) { if (end) ci.push(0, j + 1, j + 2); else ci.push(0, j + 2, j + 1); }
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
+    cg.setAttribute('normal', new THREE.Float32BufferAttribute(cn, 3));
+    cg.setAttribute('uv', new THREE.Float32BufferAttribute(cu, 2));
+    cg.setIndex(ci);
+    parts.push(cg);
   });
   return mergeGeometries(parts, false);
 }
@@ -349,57 +379,51 @@ function init() {
     return p;
   }
 
-  /* ---------- стул (origin — центр пола под стулом) ----------
-     Пропорции с фото: широкая обёрнутая спинка 56×28 см, низко над сиденьем, на плоской изогнутой
-     перекладине, которая обхватывает её сзади и выступает по бокам; сиденье-«таблетка» 52×48 см на высоте
-     47 см; четыре точёные расставленные ножки, задние идут вверх к концам перекладины.                */
+  /* ---------- кресло (origin — центр пола под креслом) ----------
+     Мид-сенчури лаунж по фото: боковины из плоских брусков 2.5 см (передняя ножка + заострённый подлокотник,
+     наклонная задняя ножка, переходящая в стойку спинки, царга сиденья), поперечины, две толстые подушки. */
   const chair = new THREE.Group();
   scene.add(chair);
   const parts = [];
-  const CHAIR_H = 0.86, CHAIR_W = 0.6, CHAIR_CY = 0.44, FIT_W = 0.84, FIT_H = 0.92;
+  const CHAIR_H = 0.84, CHAIR_W = 0.7, CHAIR_CY = 0.42, FIT_W = 1.02, FIT_H = 0.9;
 
-  // спинка: широкая (65 см по дуге), обхватывает сидящего на ~130°, низко над сиденьем
-  const BACK_W = 0.65, BACK_H = 0.29, BACK_T = 0.065;
-  const R_MID = 0.285, BACK_Y = 0.70;
-  const ARC_Z = -0.24 + R_MID - BACK_T / 2;          // лицевая поверхность спинки по центру — у заднего края сиденья
-  const backTilt = new THREE.Matrix4().makeTranslation(0, 0.47, -0.2)
-    .multiply(new THREE.Matrix4().makeRotationX(-0.1))
-    .multiply(new THREE.Matrix4().makeTranslation(0, -0.47, 0.2));
-  const backGeo = pillow(BACK_W, BACK_H, BACK_T, 0.03, 2.6, 0.012, Math.PI / 2);
-  backGeo.rotateX(Math.PI / 2);                     // ширина X, высота Y, толщина Z (+Z — лицевая сторона)
-  bendAroundY(backGeo, R_MID);
-  backGeo.translate(0, BACK_Y, ARC_Z);
-  backGeo.applyMatrix4(backTilt);
-
-  // сиденье: суперэллипс со скруглённой кромкой и пухлым верхом
-  const seatGeo = pillow(0.53, 0.49, 0.085, 0.036, 2.4, 0.026, -Math.PI / 2);
-  seatGeo.translate(0, 0.45, 0.0);
-
-  // перекладина: плоская (4.5 × 3 см) дуга ПЕРЕД нижней третью спинки, концы выступают за её края
-  const R_RAIL = R_MID - BACK_T / 2 - 0.012, RAIL_Y = BACK_Y - BACK_H / 2 + 0.085, RAIL_A = 80;
-  const railPts = [];
-  for (let i = 0; i <= 14; i++) {
-    const a = THREE.MathUtils.degToRad(-RAIL_A + (2 * RAIL_A * i) / 14);
-    railPts.push(new THREE.Vector3(R_RAIL * Math.sin(a), RAIL_Y, ARC_Z - R_RAIL * Math.cos(a)).applyMatrix4(backTilt));
+  const XS = 0.32, TH = 0.0125; // половина ширины каркаса, полутолщина бруска
+  const bar = (pts, wide, opts = {}) => sweep(pts, t => [TH, typeof wide === 'function' ? wide(t) : wide],
+    Object.assign({ normal: [1, 0, 0], n: 6, segments: 24, radial: 24, caps: ['flat', 'flat'], tile: 0.6 }, opts));
+  function sideFrame(sign) {
+    const xs = sign * XS;
+    // подлокотник: от заострённого носика спереди назад, чуть приподнимаясь
+    const arm = bar([[xs, 0.572, 0.43], [xs, 0.58, 0.1], [xs, 0.595, -0.245]], t => 0.011 + 0.021 * sstep(0, 0.35, t), { segments: 30 });
+    // передняя ножка: от пола вверх, чуть назад, в подлокотник
+    const frontLeg = bar([[xs, 0, 0.36], [xs, 0.575, 0.3]], t => 0.019 + 0.009 * t, { segments: 12 });
+    // задняя ножка: от пола вперёд-вверх к узлу у сиденья
+    const rearLeg = bar([[xs, 0, -0.35], [xs, 0.415, -0.245]], t => 0.019 + 0.011 * t, { segments: 12 });
+    // стойка спинки: от узла вверх-назад
+    const post = bar([[xs, 0.395, -0.245], [xs, 0.82, -0.405]], t => 0.03 - 0.011 * t, { segments: 14 });
+    // царга сиденья
+    const seatRail = bar([[xs, 0.4, 0.34], [xs, 0.4, -0.25]], 0.022, { segments: 12 });
+    return mergeGeometries([arm, frontLeg, rearLeg, post, seatRail], false);
   }
-  const railGeo = sweep(railPts.map(p => [p.x, p.y, p.z]), 0.015, { segments: 56, radial: 20, tile: 0.6, aspect: 1.5 });
-
-  // ножки: точёные, с сужением к полу; передние наклонены вперёд, задние от пола идут вперёд-вверх к концам перекладины
-  const jointA = THREE.MathUtils.degToRad(74);
-  const legTaper = (top, bottom) => t => bottom + (top - bottom) * t; // t: 0 у пола → 1 вверху
-  function rearLeg(sign) {
-    const top = new THREE.Vector3(R_RAIL * Math.sin(jointA) * sign, RAIL_Y - 0.004, ARC_Z - R_RAIL * Math.cos(jointA)).applyMatrix4(backTilt);
-    return sweep([[sign * 0.24, 0, -0.2], [sign * 0.238, 0.4, -0.12], [top.x, top.y, top.z]], legTaper(0.019, 0.013), { segments: 24, caps: [true, false], tile: 0.6 });
-  }
-  const frontLeg = sign => sweep([[sign * 0.245, 0, 0.26], [sign * 0.215, 0.4, 0.19]], legTaper(0.018, 0.0125), { segments: 12, caps: [true, false], tile: 0.6 });
-  const rail = (a, b) => sweep([a, b], 0.0135, { segments: 6, caps: [false, false], tile: 0.6 });
-  const frameGeo = mergeGeometries([
-    frontLeg(-1), frontLeg(1),
-    rail([-0.215, 0.4, 0.19], [0.215, 0.4, 0.19]),
-    rail([-0.215, 0.4, 0.19], [-0.238, 0.4, -0.12]),
-    rail([0.215, 0.4, 0.19], [0.238, 0.4, -0.12]),
-    rail([-0.238, 0.4, -0.12], [0.238, 0.4, -0.12])
+  const cross = (y, z, wide, thin = TH) => sweep([[-XS + TH, y, z], [XS - TH, y, z]], [thin, wide],
+    { normal: [0, 0, 1], n: 6, segments: 8, radial: 24, caps: [false, false], tile: 0.6 });
+  const deck = new THREE.BoxGeometry(2 * XS - 2 * TH, 0.018, 0.56);
+  deck.translate(0, 0.392, 0.03);
+  const crossGeo = mergeGeometries([
+    cross(0.36, 0.335, 0.02),     // передняя проножка
+    cross(0.4, -0.25, 0.02),      // задняя поперечина сиденья
+    cross(0.7, -0.36, 0.02),      // перекладина спинки
+    deck
   ], false);
+
+  // подушки: прямоугольные, со скруглённой кромкой (шов по кромке — как кант)
+  const seatGeo = pillow(0.6, 0.6, 0.115, 0.024, 7, 0.016, -Math.PI / 2);
+  seatGeo.translate(0, 0.457, 0.03);
+  const backGeo = pillow(0.6, 0.46, 0.115, 0.024, 7, 0.014, Math.PI / 2);
+  backGeo.rotateX(Math.PI / 2);                                  // ширина X, высота Y, толщина Z (+Z — лицевая)
+  const backM = new THREE.Matrix4().makeTranslation(0, 0.5, -0.27)
+    .multiply(new THREE.Matrix4().makeRotationX(-0.22))
+    .multiply(new THREE.Matrix4().makeTranslation(0, 0.225, 0.0));
+  backGeo.applyMatrix4(backM);
 
   function addPart(geo, role, explode, spin, i) {
     const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x888888 }));
@@ -414,12 +438,11 @@ function init() {
     parts.push(m);
     return m;
   }
-  addPart(frameGeo, 'frame', [0, -0.4, 0.22], [0.25, 0, 0], 0);
-  addPart(rearLeg(-1), 'frame', [-0.5, -0.05, -0.2], [0, 0, 0.35], 1);
-  addPart(rearLeg(1), 'frame', [0.5, -0.05, -0.2], [0, 0, -0.35], 2);
-  addPart(railGeo, 'frame', [0, 0.35, -0.6], [0.4, 0, 0], 3);
-  addPart(seatGeo, 'fabric', [0, 0.22, 0.6], [-0.35, 0.3, 0], 4);
-  addPart(backGeo, 'fabric', [0, 0.7, -0.15], [0.3, 0, 0.1], 5);
+  addPart(sideFrame(-1), 'frame', [-0.6, 0.1, 0], [0, 0, 0.3], 0);
+  addPart(sideFrame(1), 'frame', [0.6, 0.1, 0], [0, 0, -0.3], 1);
+  addPart(crossGeo, 'frame', [0, -0.45, 0.1], [0.3, 0, 0], 2);
+  addPart(seatGeo, 'fabric', [0, 0.2, 0.6], [-0.35, 0.3, 0], 3);
+  addPart(backGeo, 'fabric', [0, 0.65, -0.5], [0.4, 0, 0.1], 4);
 
   // тени: настоящая от ключевого света на невидимую плоскость + мягкое пятно
   const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.ShadowMaterial({ opacity: 0.34, transparent: true, depthWrite: false }));
@@ -428,7 +451,7 @@ function init() {
   shadowPlane.renderOrder = -2;
   chair.add(shadowPlane);
   const shadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.6, 1.6),
+    new THREE.PlaneGeometry(1.9, 1.9),
     new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false, opacity: 0.6 })
   );
   shadow.rotation.x = -Math.PI / 2;
@@ -438,14 +461,14 @@ function init() {
 
   // кольцо «сканера» на высоте отсечения
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.5, 0.525, 128),
+    new THREE.RingGeometry(0.62, 0.65, 128),
     new THREE.MeshBasicMaterial({ color: C.lavender, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.visible = false;
   scene.add(ring);
   const glow = new THREE.Mesh(
-    new THREE.RingGeometry(0.42, 0.6, 128),
+    new THREE.RingGeometry(0.52, 0.74, 128),
     new THREE.MeshBasicMaterial({ color: C.lavender, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false })
   );
   ring.add(glow);
@@ -454,8 +477,8 @@ function init() {
   let current = { fabric: null, frame: null };
   let loaded = false;
   async function applyConfig() {
-    const fk = FABRICS[TD.state.fabric] ? TD.state.fabric : 'boucle_cream';
-    const frk = FRAMES[TD.state.legs] ? TD.state.legs : 'walnut';
+    const fk = FABRICS[TD.state.fabric] ? TD.state.fabric : 'velvet_olive';
+    const frk = FRAMES[TD.state.legs] ? TD.state.legs : 'dark_walnut';
     const want = fk + '/' + frk;
     TD.state.materialLoading = true;
     const [fm, frm] = await Promise.all([buildMaterial('fabric', fk), buildMaterial('frame', frk)]);
