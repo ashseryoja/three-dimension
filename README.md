@@ -16,9 +16,18 @@ python3 -m http.server 8099
 Открывать нужно именно через сервер (`http://localhost:8099`), а не двойным кликом по `index.html`:
 браузер не разрешает ES-модули с `file://`.
 
-## Деплой
+## Продакшн
 
-Любой статический хостинг: GitHub Pages, Netlify, Vercel, обычный nginx. Загружать всю папку как есть.
+- Сайт: <https://three-dimension-iota.vercel.app>
+- Vercel: проект `three-dimension` в команде «welcome-9510's projects», привязан к GitHub-репозиторию
+  `ashseryoja/three-dimension`.
+- Деплой: любой push в ветку `main` автоматически выкатывается в production (около 30 секунд).
+  Вручную из папки проекта: `npx vercel deploy --prod --scope welcome-9510s-projects`.
+- Доступ: Vercel Authentication отключена для production (осталась только для preview-деплоев), сайт публичный.
+- OG-превью для мессенджеров: `assets/img/og.jpg` (1200×630). Пересоздать: открыть `/?og=1` в окне 1200×630
+  и сделать скриншот — этот режим прячет лоадер, курсор и анимации.
+- Свой домен: Vercel → проект → Settings → Domains. После этого заменить абсолютные адреса в `og:url`,
+  `og:image` и `twitter:image` в `index.html`.
 
 ## Что заменить перед отправкой клиентам
 
