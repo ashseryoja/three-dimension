@@ -86,3 +86,11 @@ cd posts && "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --hea
 Новые кадры кресла (любая поза, прозрачный фон) делает служебный режим сайта:
 `/?shot=1&ry=0.55&ex=0&wire=0&clip=1&op=1` (ry — поворот, ex — разлёт на детали, wire — сетка,
 clip — высота «скана»), снимать с флагом `--default-background-color=00000000`. Папка `posts` не деплоится.
+
+## Логотип
+
+Папка `brand/`: PNG-версии логотипа — `logo-horizontal-plum.png` (на фирменном сливовом фоне),
+`logo-horizontal-transparent.png` (молоко + лаванда на прозрачном, для тёмных подложек),
+`logo-horizontal-transparent-dark.png` (слива + пурпур на прозрачном, для светлых подложек),
+`logo-mark-plum.png` (знак на сливовой плашке — аватар/иконка), `logo-mark-transparent.png` (знак на прозрачном).
+Исходники — HTML рядом, знак в векторе — `assets/img/favicon.svg`. Папка `brand` не деплоится.
