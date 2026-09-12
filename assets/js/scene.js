@@ -41,10 +41,10 @@ const FABRICS = {
 };
 // дерево: серая карта волокна × точный оттенок, сатиновый лак (clearcoat)
 const FRAMES = {
-  walnut:     { name: 'Орех', gray: 'walnut_gray', color: 0x7b5335, nor: 'walnut_nor', rough: 'walnut_rough', tile: 0.7, normalScale: 0.5, roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.35 },
-  smoked_oak: { name: 'Копчёный дуб', gray: 'oak_gray', color: 0x5c483c, nor: 'oak_nor', rough: 'oak_rough', tile: 0.9, normalScale: 0.55, roughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.4 },
-  oak_light:  { name: 'Светлый дуб', gray: 'oak_gray', color: 0xcdb391, nor: 'oak_nor', rough: 'oak_rough', tile: 0.9, normalScale: 0.55, roughness: 0.6, clearcoat: 0.1, clearcoatRoughness: 0.4 },
-  ash_black:  { name: 'Чёрный ясень', gray: 'oak_gray', color: 0x28241f, nor: 'oak_nor', rough: 'oak_rough', tile: 0.9, normalScale: 0.5, roughness: 0.55, clearcoat: 0.1, clearcoatRoughness: 0.4 }
+  walnut:     { name: 'Орех', gray: 'walnut_gray', color: 0x5f4a3b, nor: 'walnut_nor', rough: 'walnut_rough', tile: 0.6, normalScale: 0.4, roughness: 0.58, clearcoat: 0.08, clearcoatRoughness: 0.45 },
+  smoked_oak: { name: 'Копчёный дуб', gray: 'oak_gray', color: 0x544840, nor: 'oak_nor', rough: 'oak_rough', tile: 0.8, normalScale: 0.45, roughness: 0.62, clearcoat: 0.06, clearcoatRoughness: 0.5 },
+  oak_light:  { name: 'Светлый дуб', gray: 'oak_gray', color: 0xc6ad8b, nor: 'oak_nor', rough: 'oak_rough', tile: 0.8, normalScale: 0.45, roughness: 0.6, clearcoat: 0.06, clearcoatRoughness: 0.5 },
+  ash_black:  { name: 'Чёрный ясень', gray: 'oak_gray', color: 0x26221e, nor: 'oak_nor', rough: 'oak_rough', tile: 0.8, normalScale: 0.4, roughness: 0.55, clearcoat: 0.08, clearcoatRoughness: 0.45 }
 };
 
 /* ---------- ключевые кадры (состояние кресла по разделам) ----------
@@ -55,10 +55,10 @@ const FRAMES = {
    split — режим «сетка | рендер». m — переопределения для мобильных.            */
 const KF = [
   { id: 'hero',     anchor: '#heroDrag',      at: 'zero',
-    d: { nx: 0, ny: 0, s: 1, ry: 0.5, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 1, split: 0 },
+    d: { nx: 0, ny: 0, s: 1, ry: 0.62, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 0, osc: 0.3, split: 0 },
     m: { nx: 0, ny: 0.25, s: 0.5, op: 0 } },
   { id: 'why',      anchor: '.why__stage',    at: 'center',
-    d: { s: 0.95, ry: 1.9, ex: 0, wire: 0, clip: 1, op: 1, wc: 1, spin: 0.5, split: 0 },
+    d: { s: 0.95, ry: 1.9, ex: 0, wire: 0, clip: 1, op: 1, wc: 1, spin: 0.5, osc: 0, split: 0 },
     m: { nx: 0, ny: 0.3, s: 0.5, op: 0 } },
   { id: 'why_out',  anchor: null, at: ['#why', 0.4],
     d: { nx: -0.55, ny: 0.35, s: 0.6, ry: 2.5, ex: 0.2, wire: 0, clip: 1, op: 0, wc: 1, spin: 0.5, split: 0 } },
@@ -81,28 +81,30 @@ const KF = [
   { id: 'cta',      anchor: '.cta__stage',   at: 'center',
     d: { s: 1.05, ry: 11.8, ex: 0.4, wire: 0.8, clip: 0, op: 0, wc: 0, spin: 0.35, split: 0 }, m: { s: 0.8, ex: 0.3 } }
 ];
-const NUM_FIELDS = ['s', 'ry', 'ex', 'wire', 'clip', 'op', 'wc', 'spin', 'split'];
+const NUM_FIELDS = ['s', 'ry', 'ex', 'wire', 'clip', 'op', 'wc', 'spin', 'osc', 'split'];
 
 /* ---------- геометрия: «протяжка» круглого сечения вдоль кривой ---------- */
 function sweep(points, radius, opts = {}) {
   const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p[0], p[1], p[2])), false, 'centripetal', 0.5);
-  const segs = opts.segments || 40, radial = opts.radial || 18, tile = opts.tile || 0.25;
+  const segs = opts.segments || 40, radial = opts.radial || 18, tile = opts.tile || 0.25, aspect = opts.aspect || 1;
   const frames = curve.computeFrenetFrames(segs, false);
   const lengths = curve.getLengths(segs);
   const pos = [], nor = [], uv = [], idx = [];
   const rAt = t => (typeof radius === 'function' ? radius(t) : radius);
+  const tmpN = new THREE.Vector3();
   for (let i = 0; i <= segs; i++) {
     const t = i / segs;
     const p = curve.getPointAt(t);
-    const r = rAt(t);
+    const rn = rAt(t), rb = rn * aspect;
     const N = frames.normals[i], B = frames.binormals[i];
     for (let j = 0; j <= radial; j++) {
       const a = (j / radial) * Math.PI * 2;
       const sin = Math.sin(a), cos = -Math.cos(a);
-      const nx = cos * N.x + sin * B.x, ny = cos * N.y + sin * B.y, nz = cos * N.z + sin * B.z;
-      pos.push(p.x + r * nx, p.y + r * ny, p.z + r * nz);
-      nor.push(nx, ny, nz);
-      uv.push((j / radial) * ((2 * Math.PI * r) / tile), lengths[i] / tile);
+      pos.push(p.x + cos * rn * N.x + sin * rb * B.x, p.y + cos * rn * N.y + sin * rb * B.y, p.z + cos * rn * N.z + sin * rb * B.z);
+      tmpN.set(cos / rn * N.x + sin / rb * B.x, cos / rn * N.y + sin / rb * B.y, cos / rn * N.z + sin / rb * B.z).normalize();
+      nor.push(tmpN.x, tmpN.y, tmpN.z);
+      // волокно вдоль элемента: v — по длине, u — по окружности
+      uv.push((j / radial) * ((Math.PI * (rn + rb)) / tile), lengths[i] / tile);
     }
   }
   for (let i = 0; i < segs; i++) for (let j = 0; j < radial; j++) {
@@ -122,6 +124,17 @@ function sweep(points, radius, opts = {}) {
     const p = curve.getPointAt(end);
     const r = rAt(end);
     const s = new THREE.SphereGeometry(r, 18, 12);
+    if (aspect !== 1) {
+      const B = frames.binormals[end ? segs : 0];
+      // вытягиваем сферу вдоль бинормали под эллиптическое сечение
+      const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1));
+      const sc = new THREE.Matrix4().makeScale(1, 1, 1);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().normalize());
+      s.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q.clone().invert()));
+      s.scale(1, aspect, 1);
+      s.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q));
+      void m; void sc;
+    }
     s.translate(p.x, p.y, p.z);
     parts.push(s);
   });
@@ -337,53 +350,55 @@ function init() {
   }
 
   /* ---------- стул (origin — центр пола под стулом) ----------
-     Пропорции с референса: сиденье-«таблетка» ~50×47 см на высоте 46 см, обёрнутая спинка 53×25 см
-     на изогнутой деревянной перекладине, четыре точёные ножки, задние уходят вверх к перекладине. */
+     Пропорции с фото: широкая обёрнутая спинка 56×28 см, низко над сиденьем, на плоской изогнутой
+     перекладине, которая обхватывает её сзади и выступает по бокам; сиденье-«таблетка» 52×48 см на высоте
+     47 см; четыре точёные расставленные ножки, задние идут вверх к концам перекладины.                */
   const chair = new THREE.Group();
   scene.add(chair);
   const parts = [];
-  const CHAIR_H = 0.85, CHAIR_W = 0.56, CHAIR_CY = 0.43, FIT_W = 0.8, FIT_H = 0.9;
+  const CHAIR_H = 0.86, CHAIR_W = 0.6, CHAIR_CY = 0.44, FIT_W = 0.84, FIT_H = 0.92;
 
-  // спинка: плоская панель → UV → изгиб вокруг вертикальной оси → наклон назад
-  const R_MID = 0.258, BACK_Y = 0.715, ARC_Z = 0.01;
-  const backTilt = new THREE.Matrix4().makeTranslation(0, 0.45, -0.2)
-    .multiply(new THREE.Matrix4().makeRotationX(-0.12))
-    .multiply(new THREE.Matrix4().makeTranslation(0, -0.45, 0.2));
-  // спинку строим «лёжа» (толщина по Y, выпуклость на верхней грани) → ставим вертикально → гнём по дуге
-  const backGeo = pillow(0.53, 0.25, 0.07, 0.032, 2.4, 0.012, Math.PI / 2);
+  // спинка: широкая (65 см по дуге), обхватывает сидящего на ~130°, низко над сиденьем
+  const BACK_W = 0.65, BACK_H = 0.29, BACK_T = 0.065;
+  const R_MID = 0.285, BACK_Y = 0.70;
+  const ARC_Z = -0.24 + R_MID - BACK_T / 2;          // лицевая поверхность спинки по центру — у заднего края сиденья
+  const backTilt = new THREE.Matrix4().makeTranslation(0, 0.47, -0.2)
+    .multiply(new THREE.Matrix4().makeRotationX(-0.1))
+    .multiply(new THREE.Matrix4().makeTranslation(0, -0.47, 0.2));
+  const backGeo = pillow(BACK_W, BACK_H, BACK_T, 0.03, 2.6, 0.012, Math.PI / 2);
   backGeo.rotateX(Math.PI / 2);                     // ширина X, высота Y, толщина Z (+Z — лицевая сторона)
   bendAroundY(backGeo, R_MID);
   backGeo.translate(0, BACK_Y, ARC_Z);
   backGeo.applyMatrix4(backTilt);
 
-  // сиденье: круглый суперэллипс со скруглённой кромкой и пухлым верхом
-  const seatGeo = pillow(0.5, 0.48, 0.09, 0.04, 2.2, 0.03, -Math.PI / 2);
+  // сиденье: суперэллипс со скруглённой кромкой и пухлым верхом
+  const seatGeo = pillow(0.53, 0.49, 0.085, 0.036, 2.4, 0.026, -Math.PI / 2);
   seatGeo.translate(0, 0.45, 0.0);
 
-  // изогнутая перекладина спинки (дуга за спинкой, концы выступают по бокам)
-  const R_RAIL = 0.31, RAIL_Y = 0.64;
+  // перекладина: плоская (4.5 × 3 см) дуга ПЕРЕД нижней третью спинки, концы выступают за её края
+  const R_RAIL = R_MID - BACK_T / 2 - 0.012, RAIL_Y = BACK_Y - BACK_H / 2 + 0.085, RAIL_A = 80;
   const railPts = [];
-  for (let i = 0; i <= 12; i++) {
-    const a = THREE.MathUtils.degToRad(-68 + (136 * i) / 12);
+  for (let i = 0; i <= 14; i++) {
+    const a = THREE.MathUtils.degToRad(-RAIL_A + (2 * RAIL_A * i) / 14);
     railPts.push(new THREE.Vector3(R_RAIL * Math.sin(a), RAIL_Y, ARC_Z - R_RAIL * Math.cos(a)).applyMatrix4(backTilt));
   }
-  const railGeo = sweep(railPts.map(p => [p.x, p.y, p.z]), t => 0.0165 + 0.002 * Math.sin(t * Math.PI), { segments: 48, radial: 18, tile: 0.7 });
+  const railGeo = sweep(railPts.map(p => [p.x, p.y, p.z]), 0.015, { segments: 56, radial: 20, tile: 0.6, aspect: 1.5 });
 
-  // ножки: точёные, с сужением к полу; задние — до перекладины
-  const jointA = THREE.MathUtils.degToRad(52.2);
+  // ножки: точёные, с сужением к полу; передние наклонены вперёд, задние от пола идут вперёд-вверх к концам перекладины
+  const jointA = THREE.MathUtils.degToRad(74);
   const legTaper = (top, bottom) => t => bottom + (top - bottom) * t; // t: 0 у пола → 1 вверху
   function rearLeg(sign) {
-    const top = new THREE.Vector3(R_RAIL * Math.sin(jointA) * sign, RAIL_Y, ARC_Z - R_RAIL * Math.cos(jointA)).applyMatrix4(backTilt);
-    return sweep([[sign * 0.205, 0, -0.14], [sign * 0.215, 0.41, -0.17], [top.x, top.y, top.z]], legTaper(0.017, 0.012), { segments: 24, caps: [true, false], tile: 0.7 });
+    const top = new THREE.Vector3(R_RAIL * Math.sin(jointA) * sign, RAIL_Y - 0.004, ARC_Z - R_RAIL * Math.cos(jointA)).applyMatrix4(backTilt);
+    return sweep([[sign * 0.24, 0, -0.2], [sign * 0.238, 0.4, -0.12], [top.x, top.y, top.z]], legTaper(0.019, 0.013), { segments: 24, caps: [true, false], tile: 0.6 });
   }
-  const frontLeg = sign => sweep([[sign * 0.215, 0, 0.19], [sign * 0.2, 0.41, 0.16]], legTaper(0.016, 0.0115), { segments: 12, caps: [true, false], tile: 0.7 });
-  const rail = (a, b) => sweep([a, b], 0.013, { segments: 6, caps: [false, false], tile: 0.7 });
+  const frontLeg = sign => sweep([[sign * 0.245, 0, 0.26], [sign * 0.215, 0.4, 0.19]], legTaper(0.018, 0.0125), { segments: 12, caps: [true, false], tile: 0.6 });
+  const rail = (a, b) => sweep([a, b], 0.0135, { segments: 6, caps: [false, false], tile: 0.6 });
   const frameGeo = mergeGeometries([
     frontLeg(-1), frontLeg(1),
-    rail([-0.2, 0.405, 0.16], [0.2, 0.405, 0.16]),
-    rail([-0.2, 0.405, 0.16], [-0.215, 0.405, -0.17]),
-    rail([0.2, 0.405, 0.16], [0.215, 0.405, -0.17]),
-    rail([-0.215, 0.405, -0.17], [0.215, 0.405, -0.17])
+    rail([-0.215, 0.4, 0.19], [0.215, 0.4, 0.19]),
+    rail([-0.215, 0.4, 0.19], [-0.238, 0.4, -0.12]),
+    rail([0.215, 0.4, 0.19], [0.238, 0.4, -0.12]),
+    rail([-0.238, 0.4, -0.12], [0.238, 0.4, -0.12])
   ], false);
 
   function addPart(geo, role, explode, spin, i) {
@@ -578,7 +593,8 @@ function init() {
     const float = TD.reduced ? 0 : Math.sin(t * 1.3) * 0.015 * (1 - st.ex);
     chair.scale.setScalar(scale);
     chair.position.set(st.nx * visibleW, CAM.look.y + st.ny * visibleH - CHAIR_CY * scale + float, 0);
-    chair.rotation.set(-TD.pointer.y * 0.06, st.ry + spinAngle + dragAngle + TD.pointer.x * 0.22, 0);
+    const osc = (TD.reduced ? 0 : Math.sin(t * 0.45) * (st.osc || 0));
+    chair.rotation.set(-TD.pointer.y * 0.06, st.ry + osc + spinAngle + dragAngle + TD.pointer.x * 0.22, 0);
 
     // ключевой свет следует за креслом, чтобы тень всегда попадала в карту теней
     key.position.set(chair.position.x + 2.2, chair.position.y + 4.2, chair.position.z + 2.4);
