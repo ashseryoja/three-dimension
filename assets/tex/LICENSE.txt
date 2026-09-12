@@ -1,0 +1,5 @@
+PBR-текстуры — Poly Haven (https://polyhaven.com), лицензия CC0 1.0 (public domain, атрибуция не требуется):
+wool_boucle (нормали/шероховатость/AO для «Букле с узором»), curly_teddy_natural, poly_wool_herringbone,
+velour_velvet, rough_linen, brown_leather, oak_veneer_01, walnut_veneer_02.
+Файлы пережаты в WebP 1024 px (для букле 768/512), для перекрашиваемых тканей сделаны нормированные
+серые карты (*_gray). Узор boucle_pattern.webp сгенерирован скриптом (случайные штрихи), тайлится.

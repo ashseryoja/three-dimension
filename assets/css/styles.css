@@ -507,6 +507,12 @@ main { position: relative; }
   transition: transform .35s var(--ease);
 }
 .swatch--metal { background: linear-gradient(140deg, color-mix(in srgb, var(--c), white 50%), var(--c) 45%, color-mix(in srgb, var(--c), black 40%)); }
+.swatch--img { background-color: #6a4a5e; background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .18), inset 0 -10px 16px rgba(0, 0, 0, .22); }
+.swatch.is-loading::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  border: 1.5px solid transparent; border-top-color: var(--lavender);
+  animation: spin-slow 1s linear infinite;
+}
 .swatch::after {
   content: ''; position: absolute; inset: -6px; border-radius: 50%;
   border: 1.5px solid var(--lavender); opacity: 0; transform: scale(.75);

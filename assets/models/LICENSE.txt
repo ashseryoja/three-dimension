@@ -1,3 +1,0 @@
-Модель "Mid Century Lounge Chair" — Kuutti Siitonen, Poly Haven (https://polyhaven.com/a/mid_century_lounge_chair).
-Лицензия CC0 1.0 (public domain): можно использовать без атрибуции, в том числе коммерчески.
-Текстуры сконвертированы в WebP, геометрия сжата meshopt (gltf-transform).

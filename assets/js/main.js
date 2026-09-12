@@ -12,7 +12,7 @@
   const TD = window.TD = {
     pointer: { x: 0, y: 0, tx: 0, ty: 0 },          // -1..1, сглаженные (x,y) и целевые (tx,ty)
     drag: { active: false, delta: 0 },              // перетаскивание кресла в hero
-    state: { split: 0.5, splitEff: 0, fabric: 'cognac', legs: 'walnut', process: 0 },
+    state: { split: 0.5, splitEff: 0, fabric: 'boucle_pattern', legs: 'ash_black', process: 0, materialLoading: false },
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     fine: matchMedia('(hover: hover) and (pointer: fine)').matches,
     sceneFrame: null,
@@ -303,6 +303,11 @@
       });
       TD.state[key] = btn.dataset.value;
       if (nameEl) nameEl.textContent = (btn.getAttribute('aria-label') || '').replace(', ', ' · ');
+      if (TD.applyConfig) TD.applyConfig();
+      // пока набор текстур грузится — кольцо-спиннер на выбранном свотче
+      btn.classList.add('is-loading');
+      const check = () => { if (!TD.state.materialLoading) btn.classList.remove('is-loading'); else setTimeout(check, 120); };
+      setTimeout(check, 150);
     }));
   });
 
