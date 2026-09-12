@@ -27,6 +27,14 @@
   // ?og=1 — статичный кадр для превью ссылки (без лоадера, курсора и анимаций)
   const OG = /[?&]og=1/.test(location.search);
   if (OG) document.documentElement.classList.add('is-og');
+  // ?shot=1&ry=0.55&ex=0&wire=0&clip=1&op=1&s=1 — служебный режим: только кресло на прозрачном фоне
+  // в заданной позе (для кадров в посты и презентации)
+  const sp = new URLSearchParams(location.search);
+  if (sp.get('shot')) {
+    const num = (k, d) => (sp.has(k) ? parseFloat(sp.get(k)) : d);
+    TD.shot = { ry: num('ry', 0.55), ex: num('ex', 0), wire: num('wire', 0), clip: num('clip', 1), op: num('op', 1), s: num('s', 1), ny: num('ny', 0) };
+    document.documentElement.classList.add('is-og', 'is-shot');
+  }
 
   /* ---------- прелоадер ---------- */
   const loader = $('#loader');
@@ -53,7 +61,7 @@
     if (loaderDone) return;
     loaderDone = true;
     loaderBar.style.width = '100%';
-    const wait = OG ? 0 : Math.max(0, 1150 - (performance.now() - t0));
+    const wait = (OG || TD.shot) ? 0 : Math.max(0, 1150 - (performance.now() - t0));
     setTimeout(() => {
       loader.classList.add('is-done');
       document.body.classList.remove('is-locked');

@@ -72,3 +72,17 @@ assets/img/og.jpg        превью ссылки 1200×630
 (`.why__stage`, `.process__stage`, `#compareStage`, `.config__stage`, `.cta__stage`), к центру которого
 кресло привязывается. Ключевые кадры описаны в массиве `KF` в `scene.js` — там же меняются
 взрыв на детали, сетка, высота «скана» материала и масштаб.
+
+## Посты для соцсетей
+
+Папка `posts/`: шесть постов 1080×1350 в стиле сайта — HTML-вёрстка (`post-01.html` … `post-06.html`,
+общий `post.css`), готовые PNG в `posts/png/`, кадры кресла на прозрачном фоне в `posts/shots/`.
+Тексты правятся прямо в HTML; перерендерить в PNG можно headless Chrome:
+
+```bash
+cd posts && "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --window-size=1080,1350 --force-device-scale-factor=2 --hide-scrollbars --virtual-time-budget=8000 --screenshot=png/post-01-2x.png "file://$PWD/post-01.html"
+```
+
+Новые кадры кресла (любая поза, прозрачный фон) делает служебный режим сайта:
+`/?shot=1&ry=0.55&ex=0&wire=0&clip=1&op=1` (ry — поворот, ex — разлёт на детали, wire — сетка,
+clip — высота «скана»), снимать с флагом `--default-background-color=00000000`. Папка `posts` не деплоится.

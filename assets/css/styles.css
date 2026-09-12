@@ -718,3 +718,8 @@ main { position: relative; }
 .is-og .loader, .is-og .cursor, .is-og .noise, .is-og .hero__scroll, .is-og .hero__hint { display: none !important; }
 .is-og .hero__eyebrow, .is-og .hero__lead, .is-og .hero__actions, .is-og [data-split] .w > span,
 .is-og .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+
+/* ---------- режим ?shot=1: только кресло на прозрачном фоне (кадры для постов) ---------- */
+html.is-shot, .is-shot body { background: transparent !important; }
+.is-shot main, .is-shot .header, .is-shot .footer, .is-shot .menu, .is-shot .scene-fallback, .is-shot .marquee-wrap { display: none !important; }
+.is-shot .scene { position: fixed; inset: 0; }

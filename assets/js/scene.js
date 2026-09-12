@@ -631,9 +631,16 @@ function init() {
   let spinAngle = 0, dragAngle = 0, dragVel = 0, cleared = false;
   const wireColor = new THREE.Color();
 
+  const SHOT = TD.shot || null;
+  function shotState() {
+    const fit = Math.min((visibleW * 0.86) / FIT_W, (visibleH * 0.86) / FIT_H);
+    return Object.assign(cur, { nx: 0, ny: SHOT.ny, s: 1, ry: SHOT.ry, ex: SHOT.ex, wire: SHOT.wire, clip: SHOT.clip, op: SHOT.op,
+      wc: 0, spin: 0, osc: 0, split: 0, scale: fit * SHOT.s, splitOn: false });
+  }
   function frame(t, dt) {
     if (!loaded) return;
-    const st = sample(scrollY);
+    const st = SHOT ? shotState() : sample(scrollY);
+    if (SHOT) t = 0; // без «дыхания» камеры и покачивания — детерминированный кадр
 
     if (!TD.reduced) spinAngle += dt * 0.32 * st.spin;
     if (TD.drag.delta) {
@@ -680,7 +687,7 @@ function init() {
     const tr = st.op < 0.999;
     solids.forEach(m => { m.opacity = st.op; m.transparent = tr; m.visible = solidVisible; });
     const splitMode = st.splitOn && TD.state.splitEff > 0.002;
-    wireMat.opacity = st.wire * (splitMode ? 0.95 : 0.6);
+    wireMat.opacity = st.wire * (splitMode || SHOT ? 0.95 : 0.6);
     wireMat.color.copy(wireColor.copy(C.lavender).lerp(C.plum, st.wc));
     wireMat.visible = wireVisible;
 
