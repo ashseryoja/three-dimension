@@ -57,7 +57,7 @@ const FRAMES = {
    split — режим «сетка | рендер». m — переопределения для мобильных.            */
 const KF = [
   { id: 'hero',     anchor: '#heroDrag',      at: 'zero',
-    d: { nx: 0, ny: 0, s: 1, ry: 0.62, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 0, osc: 0.3, split: 0 },
+    d: { nx: 0, ny: 0, s: 1, ry: 0.55, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 0, osc: 0.3, split: 0 },
     m: { nx: 0, ny: 0.25, s: 0.5, op: 0 } },
   { id: 'why',      anchor: '.why__stage',    at: 'center',
     d: { s: 0.95, ry: 1.9, ex: 0, wire: 0, clip: 1, op: 1, wc: 1, spin: 0.5, osc: 0, split: 0 },
@@ -149,7 +149,7 @@ function sweep(points, radius, opts = {}) {
     const p = curve.getPointAt(end);
     const [rn, rb] = rAt(end);
     frameAt(i);
-    if (kind === 'round') {
+    if (kind === 'round' || kind === true) {
       const sph = new THREE.SphereGeometry(rn, 18, 12);
       sph.translate(p.x, p.y, p.z);
       parts.push(sph);
@@ -275,6 +275,45 @@ function bendAroundY(g, R) {
   nor.needsUpdate = true;
 }
 
+/* ---------- пухлая подушка: скруглённый бокс + выпуклость граней + UV в мировом масштабе ---------- */
+function cushion(w, h, d, radius, puff) {
+  let g = new RoundedBoxGeometry(w, h, d, 7, radius);
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  g = mergeVertices(g);
+  const pos = g.attributes.position;
+  const hw = w / 2, hh = h / 2, hd = d / 2;
+  const n = new THREE.Vector3(), v = new THREE.Vector3();
+  const inner = new THREE.Vector3(hw - radius, hh - radius, hd - radius);
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    // нормаль скруглённого бокса — направление от ближайшей точки внутреннего бокса
+    n.set(v.x - clamp(v.x, -inner.x, inner.x), v.y - clamp(v.y, -inner.y, inner.y), v.z - clamp(v.z, -inner.z, inner.z));
+    if (n.lengthSq() < 1e-8) n.set(0, 1, 0); else n.normalize();
+    const mask = (1 - Math.pow(Math.abs(v.x) / hw, 3)) * (1 - Math.pow(Math.abs(v.y) / hh, 3)) * (1 - Math.pow(Math.abs(v.z) / hd, 3));
+    v.addScaledVector(n, puff * Math.max(0, mask));
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+// UV проекцией по доминирующей оси нормали, 1 UV-единица = 1 метр (для тайлящихся тканей)
+function boxProjectUVs(g, matrix) {
+  const pos = g.attributes.position, nor = g.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  const p = new THREE.Vector3(), n = new THREE.Vector3();
+  const nm = new THREE.Matrix3().getNormalMatrix(matrix);
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i).applyMatrix4(matrix);
+    n.fromBufferAttribute(nor, i).applyMatrix3(nm);
+    const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+    if (ay >= ax && ay >= az) { uv[i * 2] = p.x; uv[i * 2 + 1] = p.z; }
+    else if (ax >= az) { uv[i * 2] = p.z; uv[i * 2 + 1] = p.y; }
+    else { uv[i * 2] = p.x; uv[i * 2 + 1] = p.y; }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+
 /* ---------- процедурные текстуры ---------- */
 function shadowTexture() {
   const c = document.createElement('canvas');
@@ -386,50 +425,41 @@ function init() {
     return p;
   }
 
-  /* ---------- кресло (origin — центр пола под креслом) ----------
-     Мид-сенчури лаунж по фото: боковины из плоских брусков 2.5 см (передняя ножка + заострённый подлокотник,
-     наклонная задняя ножка, переходящая в стойку спинки, царга сиденья), поперечины, две толстые подушки. */
+  /* ---------- кресло (origin — центр пола под креслом) ---------- */
   const chair = new THREE.Group();
   scene.add(chair);
   const parts = [];
-  const CHAIR_H = 0.84, CHAIR_W = 0.7, CHAIR_CY = 0.42, FIT_W = 1.02, FIT_H = 0.9;
+  const CHAIR_H = 0.82, CHAIR_W = 0.86, CHAIR_CY = 0.42, FIT_W = 1.2, FIT_H = 0.9;
 
-  const XS = 0.32, TH = 0.0125; // половина ширины каркаса, полутолщина бруска
-  const bar = (pts, wide, opts = {}) => sweep(pts, t => [TH, typeof wide === 'function' ? wide(t) : wide],
-    Object.assign({ normal: [1, 0, 0], n: 4.5, segments: 24, radial: 24, caps: ['flat', 'flat'], tile: 0.6 }, opts));
+  const XS = 0.36; // половина ширины каркаса
   function sideFrame(sign) {
-    const xs = sign * XS;
-    // подлокотник: от заострённого носика спереди назад, чуть приподнимаясь
-    const arm = bar([[xs, 0.572, 0.43], [xs, 0.58, 0.1], [xs, 0.595, -0.245]], t => 0.019 + 0.012 * sstep(0, 0.5, t), { segments: 40, round: [0.12, 0] });
-    // передняя ножка: от пола вверх, чуть назад, в подлокотник
-    const frontLeg = bar([[xs, 0, 0.36], [xs, 0.575, 0.3]], t => 0.019 + 0.009 * t, { segments: 12 });
-    // задняя ножка: от пола вперёд-вверх к узлу у сиденья
-    const rearLeg = bar([[xs, 0, -0.35], [xs, 0.415, -0.245]], t => 0.019 + 0.011 * t, { segments: 12 });
-    // стойка спинки: от узла вверх-назад
-    const post = bar([[xs, 0.395, -0.245], [xs, 0.82, -0.405]], t => 0.03 - 0.009 * t, { segments: 20, round: [0, 0.07] });
-    // царга сиденья
-    const seatRail = bar([[xs, 0.4, 0.34], [xs, 0.4, -0.25]], 0.022, { segments: 12 });
-    return mergeGeometries([arm, frontLeg, rearLeg, post, seatRail], false);
+    const xs = sign * XS, sp = sign * 0.025; // разлёт ножек у пола
+    const frontLeg = sweep(
+      [[xs + sp, 0, 0.33], [xs + sp * 0.5, 0.2, 0.335], [xs, 0.4, 0.34], [xs, 0.57, 0.35]],
+      t => 0.02 + 0.005 * t + 0.013 * sstep(0.72, 1, t), { caps: [true, false] });
+    const rearPost = sweep(
+      [[xs + sp, 0, -0.31], [xs + sp * 0.4, 0.3, -0.33], [xs, 0.58, -0.36], [xs, 0.79, -0.415]],
+      t => 0.021 + 0.006 * t, { caps: [true, true] });
+    const arm = sweep(
+      [[xs, 0.625, -0.35], [xs, 0.618, -0.1], [xs, 0.608, 0.2], [xs, 0.598, 0.42]],
+      t => 0.03 + 0.004 * Math.sin(t * Math.PI), { caps: [true, true] });
+    const rail = sweep([[xs, 0.33, -0.31], [xs, 0.33, 0.33]], 0.019, { segments: 8, caps: [false, false] });
+    return mergeGeometries([frontLeg, rearPost, arm, rail], false);
   }
-  const cross = (y, z, wide, thin = TH) => sweep([[-XS + TH, y, z], [XS - TH, y, z]], [thin, wide],
-    { normal: [0, 0, 1], n: 4.5, segments: 8, radial: 24, caps: [false, false], tile: 0.6 });
-  const deck = new THREE.BoxGeometry(2 * XS - 2 * TH, 0.018, 0.56);
-  deck.translate(0, 0.392, 0.03);
-  const crossGeo = mergeGeometries([
-    cross(0.36, 0.335, 0.02),     // передняя проножка
-    cross(0.4, -0.25, 0.02),      // задняя поперечина сиденья
-    cross(0.7, -0.36, 0.02),      // перекладина спинки
-    deck
+  const railsGeo = mergeGeometries([
+    sweep([[-XS, 0.33, 0.33], [XS, 0.33, 0.33]], 0.019, { segments: 8, caps: [false, false] }),
+    sweep([[-XS, 0.33, -0.31], [XS, 0.33, -0.31]], 0.019, { segments: 8, caps: [false, false] }),
+    sweep([[-XS, 0.55, -0.385], [XS, 0.55, -0.385]], 0.018, { segments: 8, caps: [false, false] }),
+    sweep([[-XS, 0.7, -0.4], [XS, 0.7, -0.4]], 0.018, { segments: 8, caps: [false, false] })
   ], false);
 
-  // подушки: прямоугольные, со скруглённой кромкой (шов по кромке — как кант)
-  const seatGeo = pillow(0.6, 0.6, 0.115, 0.024, 7, 0.016, -Math.PI / 2);
-  seatGeo.translate(0, 0.457, 0.03);
-  const backGeo = pillow(0.6, 0.46, 0.115, 0.024, 7, 0.014, Math.PI / 2);
-  backGeo.rotateX(Math.PI / 2);                                  // ширина X, высота Y, толщина Z (+Z — лицевая)
-  const backM = new THREE.Matrix4().makeTranslation(0, 0.5, -0.27)
-    .multiply(new THREE.Matrix4().makeRotationX(-0.22))
-    .multiply(new THREE.Matrix4().makeTranslation(0, 0.225, 0.0));
+  const seatM = new THREE.Matrix4().makeTranslation(0, 0.415, 0.02);
+  const seatGeo = cushion(0.68, 0.15, 0.62, 0.065, 0.014);
+  boxProjectUVs(seatGeo, seatM);
+  seatGeo.applyMatrix4(seatM);
+  const backM = new THREE.Matrix4().makeRotationX(-0.14).premultiply(new THREE.Matrix4().makeTranslation(0, 0.6, -0.285));
+  const backGeo = cushion(0.68, 0.46, 0.15, 0.065, 0.014);
+  boxProjectUVs(backGeo, backM);
   backGeo.applyMatrix4(backM);
 
   function addPart(geo, role, explode, spin, i) {
@@ -445,11 +475,11 @@ function init() {
     parts.push(m);
     return m;
   }
-  addPart(sideFrame(-1), 'frame', [-0.6, 0.1, 0], [0, 0, 0.3], 0);
-  addPart(sideFrame(1), 'frame', [0.6, 0.1, 0], [0, 0, -0.3], 1);
-  addPart(crossGeo, 'frame', [0, -0.45, 0.1], [0.3, 0, 0], 2);
-  addPart(seatGeo, 'fabric', [0, 0.2, 0.6], [-0.35, 0.3, 0], 3);
-  addPart(backGeo, 'fabric', [0, 0.65, -0.5], [0.4, 0, 0.1], 4);
+  addPart(sideFrame(-1), 'frame', [-0.62, 0.12, 0], [0, 0, 0.35], 0);
+  addPart(sideFrame(1), 'frame', [0.62, 0.12, 0], [0, 0, -0.35], 1);
+  addPart(railsGeo, 'frame', [0, -0.42, 0.08], [0.3, 0, 0], 2);
+  addPart(seatGeo, 'fabric', [0, 0.18, 0.62], [-0.35, 0.25, 0], 3);
+  addPart(backGeo, 'fabric', [0, 0.62, -0.55], [0.4, 0, 0.1], 4);
 
   // тени: настоящая от ключевого света на невидимую плоскость + мягкое пятно
   const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.ShadowMaterial({ opacity: 0.34, transparent: true, depthWrite: false }));
@@ -458,7 +488,7 @@ function init() {
   shadowPlane.renderOrder = -2;
   chair.add(shadowPlane);
   const shadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.9, 1.9),
+    new THREE.PlaneGeometry(2.1, 2.1),
     new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false, opacity: 0.6 })
   );
   shadow.rotation.x = -Math.PI / 2;
@@ -468,14 +498,14 @@ function init() {
 
   // кольцо «сканера» на высоте отсечения
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.62, 0.65, 128),
+    new THREE.RingGeometry(0.74, 0.765, 128),
     new THREE.MeshBasicMaterial({ color: C.lavender, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.visible = false;
   scene.add(ring);
   const glow = new THREE.Mesh(
-    new THREE.RingGeometry(0.52, 0.74, 128),
+    new THREE.RingGeometry(0.64, 0.86, 128),
     new THREE.MeshBasicMaterial({ color: C.lavender, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false })
   );
   ring.add(glow);
@@ -484,8 +514,8 @@ function init() {
   let current = { fabric: null, frame: null };
   let loaded = false;
   async function applyConfig() {
-    const fk = FABRICS[TD.state.fabric] ? TD.state.fabric : 'velvet_olive';
-    const frk = FRAMES[TD.state.legs] ? TD.state.legs : 'dark_walnut';
+    const fk = FABRICS[TD.state.fabric] ? TD.state.fabric : 'boucle_pattern';
+    const frk = FRAMES[TD.state.legs] ? TD.state.legs : 'ash_black';
     const want = fk + '/' + frk;
     TD.state.materialLoading = true;
     const [fm, frm] = await Promise.all([buildMaterial('fabric', fk), buildMaterial('frame', frk)]);
