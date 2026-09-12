@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Three Dimension — 3D-модели мебели и предметов, неотличимые от фото</title>
+  <meta name="description" content="3D-студия для брендов мебели и предметов. Фотореалистичные 3D-модели для каталогов, маркетплейсов, конфигураторов и AR. Одна модель — все варианты обивки, цветов и интерьеров.">
+  <meta name="theme-color" content="#381932">
+  <meta property="og:title" content="Three Dimension — мебель в 3D, неотличимо от фото">
+  <meta property="og:description" content="Фотореалистичные 3D-модели мебели и предметов для каталогов, маркетплейсов, конфигураторов и AR.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./assets/vendor/three/three.module.min.js",
+        "three/addons/": "./assets/vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <!-- ===== Прелоадер ===== -->
+  <div class="loader" id="loader" aria-hidden="true">
+    <div class="loader__panel loader__panel--top"></div>
+    <div class="loader__panel loader__panel--bottom"></div>
+    <div class="loader__content">
+      <div class="cube" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <div class="loader__bar"><i id="loaderBar"></i></div>
+      <div class="loader__text">собираем 3D-сцену</div>
+    </div>
+  </div>
+
+  <!-- ===== Кастомный курсор (только десктоп) ===== -->
+  <div class="cursor" id="cursor" aria-hidden="true">
+    <div class="cursor__dot"></div>
+    <div class="cursor__ring"><span>покрутить</span></div>
+  </div>
+
+  <!-- ===== 3D-сцена: один фиксированный canvas на всю страницу ===== -->
+  <canvas class="scene" id="scene" aria-hidden="true"></canvas>
+  <div class="scene-fallback" id="sceneFallback" aria-hidden="true">
+    <svg viewBox="0 0 320 320" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <g class="fb-float">
+        <path d="M160 40 260 100v120l-100 60-100-60V100z"/>
+        <path d="M160 40v120m0 0 100-60M160 160 60 100M160 160v120"/>
+        <path d="M110 70v60l50 30 50-30V70" opacity=".5"/>
+        <path d="M60 160l100 60 100-60" opacity=".5"/>
+        <circle cx="160" cy="160" r="6" fill="currentColor" stroke="none"/>
+      </g>
+    </svg>
+  </div>
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- ===== Шапка ===== -->
+  <header class="header" id="header">
+    <a class="logo" href="#top" aria-label="Three Dimension — на главную">
+      <svg class="logo__mark" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 3 36 12v16L20 37 4 28V12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M20 3v17m0 0 16-8M20 20 4 12M20 20v17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M20 20 36 12v16L20 37z" fill="currentColor" opacity=".9"/>
+      </svg>
+      <span class="logo__text">three<b>dimension</b></span>
+    </a>
+
+    <nav class="nav" aria-label="Разделы">
+      <a href="#process">Процесс</a>
+      <a href="#config">Конфигуратор</a>
+      <a href="#services">Что вы получаете</a>
+      <a href="#contact">Контакты</a>
+    </nav>
+
+    <a class="btn btn--milk btn--sm header__cta" href="#contact" data-cursor="link">Обсудить проект</a>
+
+    <button class="burger" id="burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span>
+    </button>
+  </header>
+
+  <!-- ===== Мобильное меню ===== -->
+  <div class="menu" id="menu" aria-hidden="true">
+    <div class="menu__bg"></div>
+    <nav class="menu__nav" aria-label="Меню">
+      <a href="#process"><small>01</small>Процесс</a>
+      <a href="#compare"><small>02</small>Сетка / рендер</a>
+      <a href="#config"><small>03</small>Конфигуратор</a>
+      <a href="#services"><small>04</small>Результат</a>
+      <a href="#contact"><small>05</small>Контакты</a>
+    </nav>
+    <div class="menu__foot">
+      <a class="btn btn--milk" href="#contact">Обсудить проект</a>
+      <p>3D-студия для брендов мебели и предметов</p>
+    </div>
+  </div>
+
+  <main id="top">
+
+    <!-- ===== HERO ===== -->
+    <section class="hero" id="hero" data-stage="hero">
+      <div class="hero__bg" aria-hidden="true">
+        <div class="orb orb--1" data-parallax="-0.15"></div>
+        <div class="orb orb--2" data-parallax="0.1"></div>
+        <div class="hero__big" data-parallax="0.25">3D</div>
+        <div class="hero__floor"></div>
+      </div>
+
+      <aside class="hero__side" aria-hidden="true">3D studio&nbsp;&nbsp;·&nbsp;&nbsp;мебель&nbsp;&nbsp;·&nbsp;&nbsp;предметы&nbsp;&nbsp;·&nbsp;&nbsp;интерьеры</aside>
+
+      <div class="hero__drag" id="heroDrag" data-cursor="drag" aria-hidden="true"></div>
+
+      <div class="hero__content">
+        <p class="hero__eyebrow">
+          <span class="dot"></span>3D-студия для мебельных брендов
+        </p>
+        <h1 class="hero__title" data-split>
+          <span class="hero__line">Мебель</span>
+          <span class="hero__line">в <em class="extrude">3D.</em></span>
+          <span class="hero__line hero__line--sub">Неотличимо от фото.</span>
+        </h1>
+        <p class="hero__lead">
+          Фотореалистичные 3D-модели для каталогов, маркетплейсов, конфигураторов и AR.
+          <span class="hero__lead-more">Без фотостудии, без логистики образцов, без ограничений по цветам и интерьерам.</span>
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--milk" href="#contact" data-cursor="link" data-magnet>Обсудить проект</a>
+          <a class="btn btn--ghost" href="#process" data-cursor="link" data-magnet>Как это работает <span class="arrow">↓</span></a>
+        </div>
+      </div>
+
+      <div class="hero__hint" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3M21 12a9 9 0 0 1-15.5 6.3"/><path d="M18 2v4h-4M6 22v-4h4"/></svg>
+        <span>покрутите кресло</span>
+      </div>
+
+      <div class="hero__scroll" aria-hidden="true"><span>листайте</span><i></i></div>
+    </section>
+
+    <!-- ===== Бегущая строка ===== -->
+    <div class="marquee-wrap" aria-hidden="true">
+      <div class="marquee marquee--a">
+        <div class="marquee__track">
+          <span>Фото-рендеры</span><span>360°</span><span>AR &amp; Web 3D</span><span>Конфигураторы</span><span>Анимация</span><span>Маркетплейсы</span>
+          <span>Фото-рендеры</span><span>360°</span><span>AR &amp; Web 3D</span><span>Конфигураторы</span><span>Анимация</span><span>Маркетплейсы</span>
+        </div>
+      </div>
+      <div class="marquee marquee--b">
+        <div class="marquee__track">
+          <span>Диваны</span><span>Кресла</span><span>Столы</span><span>Кухни</span><span>Свет</span><span>Декор</span><span>Кровати</span><span>Шкафы</span>
+          <span>Диваны</span><span>Кресла</span><span>Столы</span><span>Кухни</span><span>Свет</span><span>Декор</span><span>Кровати</span><span>Шкафы</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ЗАЧЕМ ===== -->
+    <section class="why section section--milk" id="why" data-stage="why">
+      <div class="why__ghost" aria-hidden="true" data-parallax="0.2">навсегда</div>
+      <div class="why__stage" aria-hidden="true"></div>
+      <div class="why__head">
+        <span class="label reveal">01 — Зачем</span>
+        <h2 class="h2 reveal" data-split>Фотосессия — один раз. 3D-модель — навсегда.</h2>
+        <p class="lead reveal">
+          Одну модель мы используем везде: каталог, сайт, маркетплейсы, соцсети, AR.
+          Новая ткань или цвет — не новая съёмка, а пара часов работы.
+        </p>
+      </div>
+
+      <div class="versus reveal" role="table" aria-label="Фотосъёмка против 3D">
+        <div class="versus__row versus__row--head" role="row">
+          <div role="columnheader"></div>
+          <div role="columnheader"><span>Фотосъёмка</span></div>
+          <div role="columnheader"><span class="tag">3D у нас</span></div>
+        </div>
+        <div class="versus__row" role="row">
+          <div role="rowheader">Образцы</div>
+          <div role="cell">Везти в студию, собирать, возвращать</div>
+          <div role="cell"><b>Достаточно чертежа и фото</b></div>
+        </div>
+        <div class="versus__row" role="row">
+          <div role="rowheader">Варианты обивки</div>
+          <div role="cell">Каждый цвет — отдельная съёмка</div>
+          <div role="cell"><b>Все варианты из одной модели</b></div>
+        </div>
+        <div class="versus__row" role="row">
+          <div role="rowheader">Интерьер</div>
+          <div role="cell">Что построили, то и есть</div>
+          <div role="cell"><b>Любой. Меняется за минуты</b></div>
+        </div>
+        <div class="versus__row" role="row">
+          <div role="rowheader">Новинки</div>
+          <div role="cell">Только после производства</div>
+          <div role="cell"><b>До первого экземпляра</b></div>
+        </div>
+        <div class="versus__row" role="row">
+          <div role="rowheader">Форматы</div>
+          <div role="cell">Фото</div>
+          <div role="cell"><b>Фото, 360°, видео, AR, web 3D</b></div>
+        </div>
+      </div>
+
+      <div class="stats reveal">
+        <div class="stat"><span class="stat__num">0</span><span class="stat__txt">фотосессий</span></div>
+        <div class="stat"><span class="stat__num">∞</span><span class="stat__txt">вариантов обивки</span></div>
+        <div class="stat"><span class="stat__num">1</span><span class="stat__txt">модель для всех каналов</span></div>
+      </div>
+    </section>
+
+    <!-- ===== ПРОЦЕСС (sticky, 3D-сцена ведёт) ===== -->
+    <section class="process" id="process" data-stage="process">
+      <div class="process__sticky">
+        <div class="process__head">
+          <span class="label">02 — Процесс</span>
+          <h2 class="h2">От чертежа<br>до рендера</h2>
+        </div>
+
+        <ol class="steps" id="steps">
+          <li class="step is-active" data-step="0">
+            <span class="step__num">01</span>
+            <h3 class="step__title">Чертёж или фото</h3>
+            <p class="step__text">Присылаете чертежи, фото образца или эскиз. Даже снятый на телефон.</p>
+          </li>
+          <li class="step" data-step="1">
+            <span class="step__num">02</span>
+            <h3 class="step__title">Моделирование</h3>
+            <p class="step__text">Собираем точную геометрию: каждый шов, каждая фаска, реальные размеры.</p>
+          </li>
+          <li class="step" data-step="2">
+            <span class="step__num">03</span>
+            <h3 class="step__title">Материалы</h3>
+            <p class="step__text">Ткани, кожа, дерево, металл — по вашим образцам, с настоящей фактурой и бликами.</p>
+          </li>
+          <li class="step" data-step="3">
+            <span class="step__num">04</span>
+            <h3 class="step__title">Рендер и форматы</h3>
+            <p class="step__text">Фото-рендеры, 360°, AR, GLB и USDZ для сайта и маркетплейсов. Готово к публикации.</p>
+          </li>
+        </ol>
+
+        <div class="process__stage" aria-hidden="true"></div>
+        <div class="process__progress" aria-hidden="true"><i id="processBar"></i></div>
+        <div class="process__hint" aria-hidden="true">листайте — модель собирается</div>
+      </div>
+    </section>
+
+    <!-- ===== СЕТКА / РЕНДЕР ===== -->
+    <section class="compare section" id="compare" data-stage="compare">
+      <div class="compare__head">
+        <span class="label reveal">Под каждым рендером — геометрия</span>
+        <h2 class="h2 reveal" data-split>Сетка. Материал. Рендер.</h2>
+        <p class="lead reveal">Потяните ползунок. Это не картинка, а настоящая 3D-модель прямо в браузере — такую же мы отдаём вам для сайта и AR.</p>
+      </div>
+      <div class="compare__stage" id="compareStage">
+        <div class="compare__divider" id="compareDivider">
+          <button class="compare__handle" id="compareHandle" aria-label="Перетащите, чтобы сравнить сетку и рендер">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6-6 6 6 6M15 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <span class="compare__tag compare__tag--l" aria-hidden="true">сетка</span>
+        <span class="compare__tag compare__tag--r" aria-hidden="true">рендер</span>
+      </div>
+    </section>
+
+    <!-- ===== КОНФИГУРАТОР ===== -->
+    <section class="config section" id="config" data-stage="config">
+      <div class="config__ghost" aria-hidden="true" data-parallax="0.15">варианты</div>
+      <div class="config__text">
+        <span class="label reveal">03 — Возможности</span>
+        <h2 class="h2 reveal" data-split>Одна модель. Все варианты.</h2>
+        <p class="lead reveal">Так может выглядеть ваш каталог: покупатель сам выбирает ткань и ножки, а вы не снимаете сорок фотосессий.</p>
+      </div>
+
+      <div class="config__stage" aria-hidden="true"></div>
+
+      <div class="config__panel reveal">
+        <div class="config__group">
+          <div class="config__label">Обивка <span id="fabricName">Лаванда · велюр</span></div>
+          <div class="swatches" data-group="fabric" role="radiogroup" aria-label="Обивка">
+            <button class="swatch is-active" data-value="lavender" style="--c:#c3a6de" role="radio" aria-checked="true" aria-label="Лаванда, велюр"></button>
+            <button class="swatch" data-value="plum" style="--c:#4a1f45" role="radio" aria-checked="false" aria-label="Слива, велюр"></button>
+            <button class="swatch" data-value="milk" style="--c:#f1e5d6" role="radio" aria-checked="false" aria-label="Молоко, букле"></button>
+            <button class="swatch" data-value="graphite" style="--c:#2b2a2e" role="radio" aria-checked="false" aria-label="Графит, шерсть"></button>
+            <button class="swatch" data-value="ochre" style="--c:#b8742e" role="radio" aria-checked="false" aria-label="Охра, кожа"></button>
+            <button class="swatch" data-value="sage" style="--c:#7f9a86" role="radio" aria-checked="false" aria-label="Шалфей, лён"></button>
+          </div>
+        </div>
+        <div class="config__group">
+          <div class="config__label">Ножки <span id="legsName">Латунь</span></div>
+          <div class="swatches" data-group="legs" role="radiogroup" aria-label="Ножки">
+            <button class="swatch swatch--metal is-active" data-value="brass" style="--c:#cfa34e" role="radio" aria-checked="true" aria-label="Латунь"></button>
+            <button class="swatch swatch--metal" data-value="black" style="--c:#1a1a1a" role="radio" aria-checked="false" aria-label="Чёрный металл"></button>
+            <button class="swatch" data-value="oak" style="--c:#9c6b3c" role="radio" aria-checked="false" aria-label="Дуб"></button>
+          </div>
+        </div>
+        <p class="config__note">Формат для сайта — GLB / USDZ. Работает на iPhone, Android и в любом браузере.</p>
+      </div>
+    </section>
+
+    <!-- ===== ЧТО ВЫ ПОЛУЧАЕТЕ ===== -->
+    <section class="services section section--milk" id="services" data-stage="services">
+      <div class="services__head">
+        <span class="label reveal">04 — Результат</span>
+        <h2 class="h2 reveal" data-split>Что вы получаете</h2>
+      </div>
+      <div class="cards">
+        <article class="card reveal" data-tilt>
+          <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+          <h3>Фото-рендеры</h3>
+          <p>Каталожные и интерьерные кадры любого ракурса. Под ваш свет, фон и стиль бренда.</p>
+        </article>
+        <article class="card reveal" data-tilt>
+          <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3M21 12a9 9 0 0 1-15.5 6.3"/><path d="M18 2v4h-4M6 22v-4h4"/></svg></div>
+          <h3>360° и видео</h3>
+          <p>Turntable, анимация раскладки и трансформации, ролики для соцсетей и карточек товара.</p>
+        </article>
+        <article class="card reveal" data-tilt>
+          <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7.5 15 9v4l-3 1.5L9 13V9z"/><path d="M12 10.5 15 9M12 10.5 9 9M12 10.5v4"/></svg></div>
+          <h3>Web 3D и AR</h3>
+          <p>GLB и USDZ для сайта и «посмотреть в комнате» на iPhone и Android — без приложений.</p>
+        </article>
+        <article class="card reveal" data-tilt>
+          <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="var(--bg-card)"/><circle cx="15" cy="12" r="2" fill="var(--bg-card)"/><circle cx="8" cy="17" r="2" fill="var(--bg-card)"/></svg></div>
+          <h3>Конфигуратор</h3>
+          <p>Ткань, цвет, размер, комплектация — покупатель собирает сам, как в разделе выше.</p>
+        </article>
+        <article class="card reveal" data-tilt>
+          <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-1.5 11h-15z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg></div>
+          <h3>Маркетплейсы</h3>
+          <p>Карточки под требования Ozon, Wildberries и Amazon: фон, ракурсы, размеры, инфографика.</p>
+        </article>
+        <article class="card reveal" data-tilt>
+          <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4"/><path d="m14 4 6 6M7 11l1.5 1.5M9.5 8.5 11 10M12 6l1.5 1.5M4.5 13.5 6 15"/><path d="M4 20h4v-4"/></svg></div>
+          <h3>Технические модели</h3>
+          <p>Точная геометрия по чертежам для производства, презентаций и согласований с дизайнерами.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== ДЛЯ КОГО ===== -->
+    <section class="audience section" id="audience" data-stage="audience">
+      <div class="audience__head">
+        <span class="label reveal">С кем работаем</span>
+        <h2 class="h2 reveal" data-split>Для тех, кто продаёт форму</h2>
+      </div>
+      <ul class="rows">
+        <li class="row reveal"><span class="row__num">01</span><span class="row__name">Бренды мебели</span><span class="row__desc">Коллекции, новинки, каталоги, сезонные кампании</span></li>
+        <li class="row reveal"><span class="row__num">02</span><span class="row__name">Фабрики и производства</span><span class="row__desc">Модели по чертежам до запуска в серию</span></li>
+        <li class="row reveal"><span class="row__num">03</span><span class="row__name">Интернет-магазины</span><span class="row__desc">Единый стиль карточек для тысяч позиций</span></li>
+        <li class="row reveal"><span class="row__num">04</span><span class="row__name">Дизайн-студии</span><span class="row__desc">Визуализация авторских предметов и интерьеров</span></li>
+        <li class="row reveal"><span class="row__num">05</span><span class="row__name">Свет и декор</span><span class="row__desc">Материалы, стекло и металл с реальными бликами</span></li>
+      </ul>
+    </section>
+
+    <!-- ===== CTA / КОНТАКТЫ ===== -->
+    <section class="cta section" id="contact" data-stage="cta">
+      <div class="cta__ghost" aria-hidden="true" data-parallax="0.12">начать</div>
+      <div class="cta__stage" aria-hidden="true"></div>
+      <div class="cta__content">
+        <span class="label reveal">05 — Начать</span>
+        <h2 class="h2 h2--xl reveal" data-split>Пришлите один предмет.</h2>
+        <p class="lead reveal">Чертёж, фото или ссылку на карточку товара. Покажем, как он будет выглядеть в 3D, и посчитаем весь каталог.</p>
+        <!-- TODO: заменить контакты на реальные -->
+        <div class="cta__actions reveal">
+          <a class="btn btn--lavender" href="https://t.me/threedimension" target="_blank" rel="noopener" data-cursor="link" data-magnet>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.6 18.7 19.5c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.9 8.8-8c.4-.3-.1-.5-.6-.2L6.6 13.4 1.9 12c-1-.3-1-1 .2-1.5L20.6 3.4c.9-.3 1.6.2 1.3 1.2z"/></svg>
+            Написать в Telegram
+          </a>
+          <a class="btn btn--ghost" href="https://wa.me/79990000000" target="_blank" rel="noopener" data-cursor="link" data-magnet>WhatsApp</a>
+          <a class="btn btn--ghost" href="mailto:hello@threedimension.studio" data-cursor="link" data-magnet>hello@threedimension.studio</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <a class="logo logo--footer" href="#top">
+      <svg class="logo__mark" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 3 36 12v16L20 37 4 28V12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M20 3v17m0 0 16-8M20 20 4 12M20 20v17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M20 20 36 12v16L20 37z" fill="currentColor" opacity=".9"/>
+      </svg>
+      <span class="logo__text">three<b>dimension</b></span>
+    </a>
+    <nav class="footer__nav" aria-label="Подвал">
+      <a href="#process">Процесс</a>
+      <a href="#config">Конфигуратор</a>
+      <a href="#services">Что вы получаете</a>
+      <a href="#contact">Контакты</a>
+    </nav>
+    <p class="footer__copy">© <span id="year">2026</span> Three Dimension. 3D-студия для мебели и предметов.</p>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+  <script type="module" src="assets/js/scene.js"></script>
+</body>
+</html>
