@@ -97,7 +97,14 @@ function sweep(points, radius, opts = {}) {
   const fixedN = opts.normal ? new THREE.Vector3(opts.normal[0], opts.normal[1], opts.normal[2]).normalize() : null;
   const frames = fixedN ? null : curve.computeFrenetFrames(segs, false);
   const pos = [], nor = [], uv = [], idx = [];
-  const rAt = t => { const r = typeof radius === 'function' ? radius(t) : radius; return Array.isArray(r) ? r : [r, r]; };
+  const rnd = opts.round || [0, 0];
+  const roundF = t => {
+    let f = 1;
+    if (rnd[0] > 0 && t < rnd[0]) f = Math.sqrt(Math.max(0, 1 - Math.pow((rnd[0] - t) / rnd[0], 2)));
+    if (rnd[1] > 0 && t > 1 - rnd[1]) f = Math.sqrt(Math.max(0, 1 - Math.pow((t - (1 - rnd[1])) / rnd[1], 2)));
+    return Math.max(f, 0.06);
+  };
+  const rAt = t => { const r = typeof radius === 'function' ? radius(t) : radius; const f = roundF(t); return Array.isArray(r) ? [r[0] * f, r[1] * f] : [r * f, r * f]; };
   const N = new THREE.Vector3(), B = new THREE.Vector3(), T = new THREE.Vector3(), tmp = new THREE.Vector3();
   const frameAt = i => {
     if (frames) { N.copy(frames.normals[i]); B.copy(frames.binormals[i]); T.copy(frames.tangents[i]); return; }
@@ -389,23 +396,23 @@ function init() {
 
   const XS = 0.32, TH = 0.0125; // половина ширины каркаса, полутолщина бруска
   const bar = (pts, wide, opts = {}) => sweep(pts, t => [TH, typeof wide === 'function' ? wide(t) : wide],
-    Object.assign({ normal: [1, 0, 0], n: 6, segments: 24, radial: 24, caps: ['flat', 'flat'], tile: 0.6 }, opts));
+    Object.assign({ normal: [1, 0, 0], n: 4.5, segments: 24, radial: 24, caps: ['flat', 'flat'], tile: 0.6 }, opts));
   function sideFrame(sign) {
     const xs = sign * XS;
     // подлокотник: от заострённого носика спереди назад, чуть приподнимаясь
-    const arm = bar([[xs, 0.572, 0.43], [xs, 0.58, 0.1], [xs, 0.595, -0.245]], t => 0.011 + 0.021 * sstep(0, 0.35, t), { segments: 30 });
+    const arm = bar([[xs, 0.572, 0.43], [xs, 0.58, 0.1], [xs, 0.595, -0.245]], t => 0.019 + 0.012 * sstep(0, 0.5, t), { segments: 40, round: [0.12, 0] });
     // передняя ножка: от пола вверх, чуть назад, в подлокотник
     const frontLeg = bar([[xs, 0, 0.36], [xs, 0.575, 0.3]], t => 0.019 + 0.009 * t, { segments: 12 });
     // задняя ножка: от пола вперёд-вверх к узлу у сиденья
     const rearLeg = bar([[xs, 0, -0.35], [xs, 0.415, -0.245]], t => 0.019 + 0.011 * t, { segments: 12 });
     // стойка спинки: от узла вверх-назад
-    const post = bar([[xs, 0.395, -0.245], [xs, 0.82, -0.405]], t => 0.03 - 0.011 * t, { segments: 14 });
+    const post = bar([[xs, 0.395, -0.245], [xs, 0.82, -0.405]], t => 0.03 - 0.009 * t, { segments: 20, round: [0, 0.07] });
     // царга сиденья
     const seatRail = bar([[xs, 0.4, 0.34], [xs, 0.4, -0.25]], 0.022, { segments: 12 });
     return mergeGeometries([arm, frontLeg, rearLeg, post, seatRail], false);
   }
   const cross = (y, z, wide, thin = TH) => sweep([[-XS + TH, y, z], [XS - TH, y, z]], [thin, wide],
-    { normal: [0, 0, 1], n: 6, segments: 8, radial: 24, caps: [false, false], tile: 0.6 });
+    { normal: [0, 0, 1], n: 4.5, segments: 8, radial: 24, caps: [false, false], tile: 0.6 });
   const deck = new THREE.BoxGeometry(2 * XS - 2 * TH, 0.018, 0.56);
   deck.translate(0, 0.392, 0.03);
   const crossGeo = mergeGeometries([
