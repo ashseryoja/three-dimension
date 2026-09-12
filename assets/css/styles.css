@@ -703,3 +703,8 @@ main { position: relative; }
   .reveal, [data-split] .w > span, .hero__eyebrow, .hero__lead, .hero__actions, .hero__scroll, .card.reveal { opacity: 1; transform: none; }
   .noise { display: none; }
 }
+
+/* ---------- режим ?og=1: статичный кадр для превью ссылки ---------- */
+.is-og .loader, .is-og .cursor, .is-og .noise, .is-og .hero__scroll, .is-og .hero__hint { display: none !important; }
+.is-og .hero__eyebrow, .is-og .hero__lead, .is-og .hero__actions, .is-og [data-split] .w > span,
+.is-og .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }

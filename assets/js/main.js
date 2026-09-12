@@ -24,6 +24,10 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
+  // ?og=1 — статичный кадр для превью ссылки (без лоадера, курсора и анимаций)
+  const OG = /[?&]og=1/.test(location.search);
+  if (OG) document.documentElement.classList.add('is-og');
+
   /* ---------- прелоадер ---------- */
   const loader = $('#loader');
   const loaderBar = $('#loaderBar');
@@ -47,7 +51,7 @@
     if (loaderDone) return;
     loaderDone = true;
     loaderBar.style.width = '100%';
-    const wait = Math.max(0, 1150 - (performance.now() - t0));
+    const wait = OG ? 0 : Math.max(0, 1150 - (performance.now() - t0));
     setTimeout(() => {
       loader.classList.add('is-done');
       document.body.classList.remove('is-locked');
