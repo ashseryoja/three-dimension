@@ -12,7 +12,7 @@
   const TD = window.TD = {
     pointer: { x: 0, y: 0, tx: 0, ty: 0 },          // -1..1, сглаженные (x,y) и целевые (tx,ty)
     drag: { active: false, delta: 0 },              // перетаскивание кресла в hero
-    state: { split: 0.5, splitEff: 0, fabric: 'lavender', legs: 'brass', process: 0 },
+    state: { split: 0.5, splitEff: 0, fabric: 'cognac', legs: 'walnut', process: 0 },
     reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     fine: matchMedia('(hover: hover) and (pointer: fine)').matches,
     sceneFrame: null,
@@ -40,10 +40,12 @@
 
   document.body.classList.add('is-locked');
 
+  let realProgress = 0;
+  TD.onProgress = p => { realProgress = p; };
   (function tickLoader() {
     if (loaderDone) return;
-    fakeProgress += (0.84 - fakeProgress) * 0.06;
-    loaderBar.style.width = (fakeProgress * 100).toFixed(1) + '%';
+    fakeProgress += (0.84 - fakeProgress) * 0.04;
+    loaderBar.style.width = (Math.max(fakeProgress, realProgress * 0.96) * 100).toFixed(1) + '%';
     requestAnimationFrame(tickLoader);
   })();
 
@@ -70,8 +72,8 @@
     fallback.classList.add('is-visible');
     finishLoader();
   };
-  // страховка: если 3D не поднялось за 5 с — показываем страницу с SVG-заглушкой
-  setTimeout(() => { if (!TD.sceneReady) TD.onFail(); }, 5000);
+  // страховка: если 3D не поднялось за 8 с — показываем страницу с SVG-заглушкой
+  setTimeout(() => { if (!TD.sceneReady) TD.onFail(); }, 8000);
 
   /* ---------- разбивка заголовков на слова ---------- */
   $$('[data-split]').forEach(el => {

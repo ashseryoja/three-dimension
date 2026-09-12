@@ -1,15 +1,19 @@
 /* =====================================================================
    THREE DIMENSION — 3D-сцена. Один фиксированный canvas на всю страницу,
-   процедурное кресло, которое «путешествует» по разделам по мере скролла:
-   hero → зачем → процесс (взрыв на детали → сборка → «скан» материалов)
-   → сетка/рендер (split-рендер) → конфигуратор → CTA (чертёж).
+   реалистичное лаунж-кресло (GLB, CC0 Poly Haven), которое «путешествует»
+   по разделам по мере скролла: hero → зачем → процесс (взрыв на детали →
+   сборка → «скан» материалов) → сетка/рендер (split-рендер) → конфигуратор
+   → CTA (чертёж). На мобильных первый экран без 3D.
    ===================================================================== */
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const TD = window.TD;
 const canvas = document.getElementById('scene');
+// 2k-текстуры для десктопа, 1k — для телефонов (в 3 раза меньше трафика)
+const MODEL_URL = innerWidth < 1024 ? 'assets/models/chair-1k.glb' : 'assets/models/chair.glb';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = t => t * t * (3 - 2 * t);
@@ -21,19 +25,21 @@ const C = {
   milk: new THREE.Color(0xfff3e6)
 };
 
-/* ---------- пресеты материалов конфигуратора ---------- */
-const FABRICS = {
-  lavender: { color: 0xc3a6de, pillow: 0xfff3e6, roughness: 0.82, sheen: 1.0, sheenColor: 0xf0e4fa, sheenRoughness: 0.55, clearcoat: 0.01, bump: 0.0025 },
-  plum:     { color: 0x4a1f45, pillow: 0xdcc8ec, roughness: 0.80, sheen: 1.0, sheenColor: 0xb07ab8, sheenRoughness: 0.50, clearcoat: 0.01, bump: 0.0025 },
-  milk:     { color: 0xf1e5d6, pillow: 0x381932, roughness: 1.00, sheen: 0.5, sheenColor: 0xffffff, sheenRoughness: 0.90, clearcoat: 0.01, bump: 0.0060 },
-  graphite: { color: 0x2b2a2e, pillow: 0xc3a6de, roughness: 0.95, sheen: 0.7, sheenColor: 0x8d8a96, sheenRoughness: 0.70, clearcoat: 0.01, bump: 0.0040 },
-  ochre:    { color: 0xb8742e, pillow: 0xfff3e6, roughness: 0.42, sheen: 0.05, sheenColor: 0xffffff, sheenRoughness: 0.50, clearcoat: 0.45, bump: 0.0015 },
-  sage:     { color: 0x7f9a86, pillow: 0xfff3e6, roughness: 0.90, sheen: 0.6, sheenColor: 0xd8e4da, sheenRoughness: 0.80, clearcoat: 0.01, bump: 0.0050 }
+/* ---------- пресеты конфигуратора ----------
+   orig — оригинальная текстура модели; tint — перекраска (серая карта × цвет) */
+const LEATHER = {
+  cognac:   { orig: true },
+  plum:     { tint: 0x4a1f45 },
+  milk:     { tint: 0xf1e5d6 },
+  graphite: { tint: 0x2b2a2e },
+  sage:     { tint: 0x7f9a86 },
+  lavender: { tint: 0xc3a6de }
 };
-const LEGS = {
-  brass: { color: 0xcfa34e, metalness: 1.0, roughness: 0.28 },
-  black: { color: 0x1a1a1a, metalness: 0.9, roughness: 0.42 },
-  oak:   { color: 0x9c6b3c, metalness: 0.0, roughness: 0.62 }
+const FRAME = {
+  walnut: { wood: { orig: true },     metal: { orig: true } },
+  oak:    { wood: { tint: 0xd9b283 }, metal: { orig: true } },
+  black:  { wood: { tint: 0x1f1b1c }, metal: { tint: 0x141414, metalness: 0.85, roughness: 0.45 } },
+  brass:  { wood: { orig: true },     metal: { tint: 0xcfa34e, metalness: 1, roughness: 0.3 } }
 };
 
 /* ---------- ключевые кадры (состояние кресла по разделам) ----------
@@ -44,52 +50,35 @@ const LEGS = {
    split — режим «сетка | рендер». m — переопределения для мобильных.            */
 const KF = [
   { id: 'hero',     anchor: '#heroDrag',      at: 'zero',
-    d: { nx: 0, ny: 0, s: 1, ry: 0.15, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 1, split: 0 }, m: { s: 0.98 } },
+    d: { nx: 0, ny: 0, s: 1, ry: -0.55, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 1, split: 0 },
+    m: { nx: 0, ny: 0.25, s: 0.5, op: 0 } },
   { id: 'why',      anchor: '.why__stage',    at: 'center',
-    d: { s: 0.95, ry: 1.4, ex: 0, wire: 0, clip: 1, op: 1, wc: 1, spin: 0.5, split: 0 },
+    d: { s: 0.95, ry: 0.9, ex: 0, wire: 0, clip: 1, op: 1, wc: 1, spin: 0.5, split: 0 },
     m: { nx: 0, ny: 0.3, s: 0.5, op: 0 } },
-  // уходит влево-вверх и гаснет, пока читают таблицу
   { id: 'why_out',  anchor: null, at: ['#why', 0.4],
-    d: { nx: -0.55, ny: 0.35, s: 0.6, ry: 2.0, ex: 0.2, wire: 0, clip: 1, op: 0, wc: 1, spin: 0.5, split: 0 } },
-  // невидимый «взорванный» — детали влетают сверху к началу процесса
+    d: { nx: -0.55, ny: 0.35, s: 0.6, ry: 1.5, ex: 0.2, wire: 0, clip: 1, op: 0, wc: 1, spin: 0.5, split: 0 } },
   { id: 'pre',      anchor: null, at: ['#process', 'top', -0.55],
-    d: { nx: 0.05, ny: 0.45, s: 0.8, ry: 2.3, ex: 1, wire: 0, clip: 0, op: 0, wc: 0, spin: 0.55, split: 0 } },
-  { id: 'p0', anchor: '.process__stage', at: ['#process', 0],    d: { s: 1, ry: 2.6, ex: 1, wire: 1, clip: 0, op: 1, wc: 0, spin: 0.55, split: 0 } },
-  { id: 'p1', anchor: '.process__stage', at: ['#process', 0.30], d: { ex: 0, wire: 1, clip: 0, ry: 3.7 } },
-  { id: 'p2', anchor: '.process__stage', at: ['#process', 0.48], d: { ex: 0, wire: 1, clip: 0, ry: 4.3 } },
-  { id: 'p3', anchor: '.process__stage', at: ['#process', 0.74], d: { ex: 0, wire: 1, clip: 1, ry: 5.3 } },
-  { id: 'p4', anchor: '.process__stage', at: ['#process', 0.86], d: { wire: 0, clip: 1, ry: 5.9 } },
-  { id: 'p5', anchor: '.process__stage', at: ['#process', 1],    d: { wire: 0, clip: 1, ry: 7.0, s: 1.05 } },
+    d: { nx: 0.05, ny: 0.45, s: 0.8, ry: 1.9, ex: 1, wire: 0, clip: 0, op: 0, wc: 0, spin: 0.55, split: 0 } },
+  { id: 'p0', anchor: '.process__stage', at: ['#process', 0],    d: { s: 1, ry: 2.2, ex: 1, wire: 1, clip: 0, op: 1, wc: 0, spin: 0.55, split: 0 } },
+  { id: 'p1', anchor: '.process__stage', at: ['#process', 0.30], d: { ex: 0, wire: 1, clip: 0, ry: 3.3 } },
+  { id: 'p2', anchor: '.process__stage', at: ['#process', 0.48], d: { ex: 0, wire: 1, clip: 0, ry: 3.9 } },
+  { id: 'p3', anchor: '.process__stage', at: ['#process', 0.74], d: { ex: 0, wire: 1, clip: 1, ry: 4.9 } },
+  { id: 'p4', anchor: '.process__stage', at: ['#process', 0.86], d: { wire: 0, clip: 1, ry: 5.5 } },
+  { id: 'p5', anchor: '.process__stage', at: ['#process', 1],    d: { wire: 0, clip: 1, ry: 6.6, s: 1.05 } },
   { id: 'compare',  anchor: '#compareStage', at: 'center',
-    d: { s: 1, ry: 7.6, ex: 0, wire: 1, clip: 1, op: 1, wc: 0, spin: 0.3, split: 1 }, m: { s: 1.12 } },
+    d: { s: 1, ry: 7.2, ex: 0, wire: 1, clip: 1, op: 1, wc: 0, spin: 0.3, split: 1 }, m: { s: 1.12 } },
   { id: 'config',   anchor: '.config__stage', at: 'center',
-    d: { s: 1, ry: 8.7, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 0.45, split: 0 } },
+    d: { s: 1, ry: 8.3, ex: 0, wire: 0, clip: 1, op: 1, wc: 0, spin: 0.45, split: 0 } },
   { id: 'services', anchor: null, at: ['#services', 'top'],
-    d: { nx: 0.3, ny: 0.3, s: 0.5, op: 0, wire: 0, ry: 9.6, split: 0 } },
+    d: { nx: 0.3, ny: 0.3, s: 0.5, op: 0, wire: 0, ry: 9.2, split: 0 } },
   { id: 'audience', anchor: null, at: ['#audience', 'top'],
-    d: { nx: 0.3, ny: 0.3, s: 0.5, op: 0, wire: 0, ry: 10.2, split: 0 } },
+    d: { nx: 0.3, ny: 0.3, s: 0.5, op: 0, wire: 0, ry: 9.8, split: 0 } },
   { id: 'cta',      anchor: '.cta__stage',   at: 'center',
-    d: { s: 1.05, ry: 11.2, ex: 0.4, wire: 0.8, clip: 0, op: 0, wc: 0, spin: 0.35, split: 0 }, m: { s: 0.8, ex: 0.3 } }
+    d: { s: 1.05, ry: 10.8, ex: 0.4, wire: 0.8, clip: 0, op: 0, wc: 0, spin: 0.35, split: 0 }, m: { s: 0.8, ex: 0.3 } }
 ];
 const NUM_FIELDS = ['s', 'ry', 'ex', 'wire', 'clip', 'op', 'wc', 'spin', 'split'];
 
 /* ---------- процедурные текстуры ---------- */
-function noiseTexture(size = 256) {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = 105 + Math.random() * 100;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(7, 7);
-  return t;
-}
 function shadowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
@@ -103,13 +92,60 @@ function shadowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+/* ---------- разбиение меша на связные детали ---------- */
+function splitComponents(geo) {
+  const pos = geo.attributes.position;
+  const index = geo.index ? geo.index.array : null;
+  const triCount = index ? index.length / 3 : pos.count / 3;
+  // сварка по позиции: вершины на швах UV дублируются, но лежат в одной точке
+  const keyMap = new Map();
+  const canon = new Int32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const k = Math.round(pos.getX(i) * 5000) + ',' + Math.round(pos.getY(i) * 5000) + ',' + Math.round(pos.getZ(i) * 5000);
+    let c = keyMap.get(k);
+    if (c === undefined) { c = i; keyMap.set(k, i); }
+    canon[i] = c;
+  }
+  const parent = new Int32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) parent[i] = i;
+  const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  const vid = t => index ? index[t] : t;
+  for (let t = 0; t < triCount; t++) {
+    const a = canon[vid(t * 3)], b = canon[vid(t * 3 + 1)], c = canon[vid(t * 3 + 2)];
+    union(a, b); union(b, c);
+  }
+  const groups = new Map();
+  for (let t = 0; t < triCount; t++) {
+    const r = find(canon[vid(t * 3)]);
+    let g = groups.get(r);
+    if (!g) { g = []; groups.set(r, g); }
+    g.push(vid(t * 3), vid(t * 3 + 1), vid(t * 3 + 2));
+  }
+  const parts = [];
+  groups.forEach(tris => {
+    const g2 = new THREE.BufferGeometry();
+    for (const name in geo.attributes) g2.setAttribute(name, geo.attributes[name]);
+    g2.setIndex(tris);
+    g2.computeBoundingBox();
+    // bbox только по вершинам этой детали (computeBoundingBox смотрит на весь общий буфер)
+    const box = new THREE.Box3();
+    const v = new THREE.Vector3();
+    for (let i = 0; i < tris.length; i++) box.expandByPoint(v.fromBufferAttribute(pos, tris[i]));
+    g2.userData.box = box;
+    parts.push(g2);
+  });
+  parts.sort((a, b) => b.index.count - a.index.count);
+  return parts;
+}
+
 function init() {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   let isMobile = innerWidth < 1024;
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isMobile ? 1.75 : 2));
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.0;
   renderer.localClippingEnabled = true;
   canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); TD.sceneFrame = null; TD.onFail(); });
 
@@ -120,87 +156,28 @@ function init() {
   // студийное окружение для PBR-отражений (без внешних файлов)
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  if ('environmentIntensity' in scene) scene.environmentIntensity = 0.85;
+  if ('environmentIntensity' in scene) scene.environmentIntensity = 0.9;
   pmrem.dispose();
 
-  const key = new THREE.DirectionalLight(0xfff3e6, 1.5); key.position.set(2.5, 4, 3); scene.add(key);
-  const rim = new THREE.DirectionalLight(0xdcc8ec, 1.3); rim.position.set(-3, 2.5, -2.5); scene.add(rim);
-  scene.add(new THREE.AmbientLight(0x7b2a86, 0.35));
+  const key = new THREE.DirectionalLight(0xfff3e6, 1.4); key.position.set(2.5, 4, 3); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xdcc8ec, 1.2); rim.position.set(-3, 2.5, -2.5); scene.add(rim);
+  scene.add(new THREE.AmbientLight(0x7b2a86, 0.3));
 
   /* ---------- плоскости отсечения («скан» материала) ---------- */
   const clipSolid = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e4); // оставляет y <= h
   const clipWire = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e4);   // оставляет y >= h
 
-  /* ---------- материалы ---------- */
-  const bump = noiseTexture();
-  const fabricMat = new THREE.MeshPhysicalMaterial({ bumpMap: bump, clippingPlanes: [clipSolid] });
-  const pillowMat = new THREE.MeshPhysicalMaterial({ bumpMap: bump, clippingPlanes: [clipSolid] });
-  const legMat = new THREE.MeshStandardMaterial({ clippingPlanes: [clipSolid] });
   const wireMat = new THREE.MeshBasicMaterial({ color: C.lavender, wireframe: true, transparent: true, opacity: 0.6, clippingPlanes: [clipWire], depthWrite: false });
-  const solids = [fabricMat, pillowMat, legMat];
-
-  const applyFabric = (f, k = 1) => {
-    fabricMat.color.lerp(new THREE.Color(f.color), k);
-    fabricMat.sheenColor.lerp(new THREE.Color(f.sheenColor), k);
-    fabricMat.roughness = lerp(fabricMat.roughness, f.roughness, k);
-    fabricMat.sheen = lerp(fabricMat.sheen, f.sheen, k);
-    fabricMat.sheenRoughness = lerp(fabricMat.sheenRoughness, f.sheenRoughness, k);
-    fabricMat.clearcoat = lerp(fabricMat.clearcoat, f.clearcoat, k);
-    fabricMat.bumpScale = lerp(fabricMat.bumpScale, f.bump, k);
-    pillowMat.color.lerp(new THREE.Color(f.pillow), k);
-    pillowMat.sheenColor.lerp(new THREE.Color(0xffffff), k);
-    pillowMat.roughness = lerp(pillowMat.roughness, 0.9, k);
-    pillowMat.sheen = lerp(pillowMat.sheen, 0.7, k);
-    pillowMat.sheenRoughness = lerp(pillowMat.sheenRoughness, 0.8, k);
-    pillowMat.clearcoat = lerp(pillowMat.clearcoat, 0.01, k);
-    pillowMat.bumpScale = lerp(pillowMat.bumpScale, 0.004, k);
-  };
-  const applyLegs = (l, k = 1) => {
-    legMat.color.lerp(new THREE.Color(l.color), k);
-    legMat.metalness = lerp(legMat.metalness, l.metalness, k);
-    legMat.roughness = lerp(legMat.roughness, l.roughness, k);
-  };
-  fabricMat.sheenColor = new THREE.Color(); fabricMat.sheen = 0.5; fabricMat.clearcoat = 0.01; fabricMat.bumpScale = 0.002;
-  pillowMat.sheenColor = new THREE.Color(); pillowMat.sheen = 0.5; pillowMat.clearcoat = 0.01; pillowMat.bumpScale = 0.002;
-  applyFabric(FABRICS[TD.state.fabric] || FABRICS.lavender, 1);
-  applyLegs(LEGS[TD.state.legs] || LEGS.brass, 1);
+  const solids = []; // все материалы деталей (оригинальные и перекрашенные)
 
   /* ---------- кресло (origin — центр пола под креслом) ---------- */
   const chair = new THREE.Group();
   scene.add(chair);
+  const model = new THREE.Group();
+  chair.add(model);
   const parts = [];
-  const CHAIR_H = 1.02, CHAIR_W = 1.2, CHAIR_CY = 0.5;
-  // габариты «в проекции»: диагональ при повороте + перспектива (перед кресла ближе к камере)
-  const FIT_W = 1.62, FIT_H = 1.22;
-
-  function addPart(geo, mat, pos, rot, explode, spin) {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(pos[0], pos[1], pos[2]);
-    if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
-    const w = new THREE.Mesh(geo, wireMat);
-    m.add(w);
-    m.userData = {
-      base: m.position.clone(), baseRot: m.rotation.clone(),
-      explode: new THREE.Vector3(explode[0], explode[1], explode[2]),
-      spin: new THREE.Vector3(spin[0], spin[1], spin[2]),
-      phase: Math.random() * Math.PI * 2
-    };
-    chair.add(m);
-    parts.push(m);
-    return m;
-  }
-  const R = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 4, r);
-
-  addPart(R(1.18, 0.07, 0.86, 0.03), legMat,    [0, 0.235, 0],        null,                 [0, -0.5, 0],       [0, 0.5, 0]);        // основание
-  addPart(R(1.0, 0.24, 0.86, 0.09),  fabricMat, [0, 0.39, 0],         null,                 [0, -0.12, 0.6],    [0.25, 0, 0]);       // сиденье
-  addPart(R(0.86, 0.11, 0.7, 0.05),  fabricMat, [0, 0.565, 0.05],     null,                 [0, 0.45, 0.75],    [-0.4, 0.3, 0]);     // подушка сиденья
-  addPart(R(1.0, 0.74, 0.2, 0.08),   fabricMat, [0, 0.64, -0.33],     [-0.1, 0, 0],         [0, 0.7, -0.75],    [0.4, 0, 0.12]);     // спинка
-  addPart(R(0.17, 0.45, 0.86, 0.06), fabricMat, [-0.585, 0.495, 0],   null,                 [-0.85, 0.3, 0.1],  [0, 0, 0.55]);       // подлокотник L
-  addPart(R(0.17, 0.45, 0.86, 0.06), fabricMat, [0.585, 0.495, 0],    null,                 [0.85, 0.3, 0.1],   [0, 0, -0.55]);      // подлокотник R
-  addPart(R(0.36, 0.36, 0.11, 0.05), pillowMat, [0.2, 0.8, -0.17],    [-0.15, -0.32, 0.06], [0.6, 0.95, 0.4],   [0.7, 0.5, 0.35]);   // декоративная подушка
-  const legGeo = new THREE.CylinderGeometry(0.022, 0.015, 0.2, 18);
-  [[-0.5, 0.36], [0.5, 0.36], [-0.5, -0.36], [0.5, -0.36]].forEach(([x, z]) =>
-    addPart(legGeo, legMat, [x, 0.1, z], [z > 0 ? 0.08 : -0.08, 0, x > 0 ? -0.08 : 0.08], [x * 1.1, -0.9, z * 1.1], [0, 0, 0]));
+  let CHAIR_H = 1.17, CHAIR_W = 1.2, CHAIR_CY = 0.58, FIT_W = 1.62, FIT_H = 1.22;
+  let loaded = false;
 
   // мягкая тень под креслом
   const shadow = new THREE.Mesh(
@@ -225,6 +202,163 @@ function init() {
     new THREE.MeshBasicMaterial({ color: C.lavender, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false })
   );
   ring.add(glow);
+
+  /* ---------- материалы по ролям ---------- */
+  const mats = {}; // { leather: {orig, tint}, wood: {...}, metal: {...} }
+  const roleMean = { leather: 0.1, wood: 0.2, metal: 0.2 }; // средняя линейная яркость серой карты по роли
+
+  function buildMaterials(origMat, grayTex) {
+    const base = () => {
+      const m = origMat.clone();
+      m.clippingPlanes = [clipSolid];
+      m.side = THREE.FrontSide;
+      m.envMapIntensity = 1;
+      return m;
+    };
+    ['leather', 'wood', 'metal'].forEach(role => {
+      const orig = base();
+      const tint = base();
+      tint.map = grayTex;
+      mats[role] = { orig, tint };
+      solids.push(orig, tint);
+    });
+    // перекрашенный металл — без карты металличности, чтобы латунь была по-настоящему металлом
+    mats.metal.tint.metalnessMap = null;
+    mats.metal.tint.roughnessMap = null;
+    mats.metal.tint.needsUpdate = true;
+  }
+
+  function setTint(mat, role, hex) {
+    mat.color.set(hex).multiplyScalar(1 / Math.max(0.02, roleMean[role]));
+  }
+
+  function applyConfig() {
+    const L = LEATHER[TD.state.fabric] || LEATHER.cognac;
+    const F = FRAME[TD.state.legs] || FRAME.walnut;
+    const pick = (role, spec) => {
+      const m = spec.orig ? mats[role].orig : mats[role].tint;
+      if (!spec.orig) {
+        setTint(m, role, spec.tint);
+        if (role === 'metal') { m.metalness = spec.metalness ?? 1; m.roughness = spec.roughness ?? 0.35; }
+      }
+      return m;
+    };
+    const chosen = { leather: pick('leather', L), wood: pick('wood', F.wood), metal: pick('metal', F.metal) };
+    parts.forEach(p => { p.material = chosen[p.userData.role]; });
+  }
+  let lastConfig = '';
+
+  /* ---------- загрузка модели ---------- */
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  loader.load(MODEL_URL, gltf => {
+    let srcMesh = null;
+    gltf.scene.traverse(o => { if (o.isMesh && !srcMesh) srcMesh = o; });
+    if (!srcMesh) { TD.onFail(); return; }
+    gltf.scene.updateMatrixWorld(true);
+    const geo = srcMesh.geometry.clone();
+    // meshopt/KHR_mesh_quantization хранит атрибуты в нормализованных int-типах —
+    // распаковываем во float32, иначе трансформация узла переполнит int16
+    ['position', 'normal', 'uv'].forEach(name => {
+      const a = geo.attributes[name];
+      if (!a) return;
+      const f = new Float32Array(a.count * a.itemSize);
+      for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j);
+      geo.setAttribute(name, new THREE.BufferAttribute(f, a.itemSize));
+    });
+    geo.applyMatrix4(srcMesh.matrixWorld);
+    const origMat = srcMesh.material;
+
+    // габариты и центр
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox, size = new THREE.Vector3(), center = new THREE.Vector3();
+    bb.getSize(size); bb.getCenter(center);
+    CHAIR_H = size.y; CHAIR_W = Math.max(size.x, size.z); CHAIR_CY = size.y / 2;
+    FIT_W = CHAIR_W * 1.36; FIT_H = CHAIR_H * 1.06;
+    model.position.set(-center.x, -bb.min.y, -center.z);
+
+    // серая карта яркости из диффузной текстуры — для перекраски
+    const img = origMat.map && origMat.map.image;
+    const gsize = 1024;
+    const gc = document.createElement('canvas');
+    gc.width = gc.height = gsize;
+    const gctx = gc.getContext('2d', { willReadFrequently: true });
+    let data = null;
+    if (img) {
+      gctx.drawImage(img, 0, 0, gsize, gsize);
+      data = gctx.getImageData(0, 0, gsize, gsize);
+    }
+    const uv = geo.attributes.uv;
+    const sampleRGB = (indices) => {
+      const acc = [0, 0, 0]; let n = 0;
+      if (!data) return [110, 80, 50];
+      const step = Math.max(1, Math.floor(indices.length / 300));
+      for (let i = 0; i < indices.length; i += step) {
+        const vi = indices[i];
+        const u = ((uv.getX(vi) % 1) + 1) % 1, v = ((uv.getY(vi) % 1) + 1) % 1;
+        const px = (Math.floor(v * (gsize - 1)) * gsize + Math.floor(u * (gsize - 1))) * 4;
+        acc[0] += data.data[px]; acc[1] += data.data[px + 1]; acc[2] += data.data[px + 2]; n++;
+      }
+      return acc.map(x => x / Math.max(1, n));
+    };
+
+    // детали + роли
+    const comps = splitComponents(geo);
+    const roleSum = { leather: [0, 0], wood: [0, 0], metal: [0, 0] };
+    comps.forEach((g, i) => {
+      const b = g.userData.box, s = new THREE.Vector3(); b.getSize(s);
+      const rgb = sampleRGB(g.index.array);
+      let role;
+      if (b.min.y < bb.min.y + 0.03) role = 'metal';                 // база на полу
+      else if (Math.max(s.x, s.y, s.z) < 0.2) role = 'metal';          // стойка-шарнир
+      else role = rgb[0] > 95 ? 'wood' : 'leather';                    // фанера светлее кожи
+      const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+      roleSum[role][0] += Math.pow(lum, 2.2); roleSum[role][1]++;
+      const c = new THREE.Vector3(); b.getCenter(c);
+      const dir = new THREE.Vector3(c.x - center.x, c.y - center.y, c.z - center.z);
+      if (role === 'metal') dir.set(0, -0.6, 0);
+      else dir.multiplyScalar(1.5).y += role === 'leather' ? 0.25 : 0.05;
+      const spin = [((i % 3) - 1) * 0.35, (i % 2 ? 0.3 : -0.3), (((i + 1) % 3) - 1) * 0.25];
+      const m = new THREE.Mesh(g, origMat);
+      const w = new THREE.Mesh(g, wireMat);
+      m.add(w);
+      m.userData = {
+        role,
+        base: new THREE.Vector3(), baseRot: new THREE.Euler(),
+        explode: dir, spin: new THREE.Vector3(spin[0], spin[1], spin[2]),
+        phase: (i * 1.7) % (Math.PI * 2), wire: w
+      };
+      model.add(m);
+      parts.push(m);
+    });
+    Object.keys(roleSum).forEach(r => { if (roleSum[r][1]) roleMean[r] = roleSum[r][0] / roleSum[r][1]; });
+
+    if (data) {
+      const d = data.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+        d[i] = d[i + 1] = d[i + 2] = l;
+      }
+      gctx.putImageData(data, 0, 0);
+    }
+    const grayTex = new THREE.CanvasTexture(gc);
+    grayTex.colorSpace = THREE.SRGBColorSpace;
+    grayTex.flipY = false;
+    grayTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    if (origMat.map) { origMat.map.anisotropy = grayTex.anisotropy; }
+
+    buildMaterials(origMat, grayTex);
+    applyConfig();
+    lastConfig = TD.state.fabric + '/' + TD.state.legs;
+    loaded = true;
+    layout();
+    TD.onReady();
+  }, xhr => {
+    if (xhr.lengthComputable && TD.onProgress) TD.onProgress(xhr.loaded / xhr.total);
+  }, err => {
+    console.error('[scene] модель не загрузилась:', err);
+    TD.onFail();
+  });
 
   /* ---------- раскладка ключевых кадров по скроллу ---------- */
   let visibleH = 1, visibleW = 1;
@@ -266,7 +400,6 @@ function init() {
       }
       f.at = clamp(at, 0, maxScroll);
     });
-    // порядок должен быть монотонным
     for (let i = 1; i < frames.length; i++) if (frames[i].at < frames[i - 1].at) frames[i].at = frames[i - 1].at;
   }
 
@@ -277,7 +410,6 @@ function init() {
   }
 
   // положение и масштаб кадра в текущий момент (якорь двигается вместе со страницей)
-  const tmp = { nx: 0, ny: 0, scale: 1 };
   function framePlacement(f, out) {
     const vw = innerWidth, vh = innerHeight;
     const wpx = visibleW / vw, wpy = visibleH / vh; // мировых единиц на пиксель
@@ -334,6 +466,7 @@ function init() {
   const wireColor = new THREE.Color();
 
   function frame(t, dt) {
+    if (!loaded) return;
     const st = sample(scrollY);
 
     // авто-вращение + перетаскивание с инерцией
@@ -348,10 +481,9 @@ function init() {
       dragVel *= Math.exp(-dt * 2.6);
     }
 
-    // материалы конфигуратора — плавно
-    const f = FABRICS[TD.state.fabric], l = LEGS[TD.state.legs];
-    if (f) applyFabric(f, Math.min(1, dt * 5));
-    if (l) applyLegs(l, Math.min(1, dt * 5));
+    // конфигуратор — мгновенная смена материалов, как в товарном конфигураторе
+    const cfg = TD.state.fabric + '/' + TD.state.legs;
+    if (cfg !== lastConfig) { lastConfig = cfg; applyConfig(); }
 
     // положение и масштаб
     const scale = st.scale;
@@ -369,9 +501,9 @@ function init() {
     parts.forEach((p, i) => {
       const u = p.userData;
       const bob = TD.reduced ? 0 : Math.sin(t * 1.4 + u.phase) * 0.035 * ex;
-      p.position.set(u.base.x + u.explode.x * ex, u.base.y + u.explode.y * ex + bob, u.base.z + u.explode.z * ex);
+      p.position.set(u.explode.x * ex, u.explode.y * ex + bob, u.explode.z * ex);
       const wob = TD.reduced ? 0 : Math.sin(t * 0.6 + u.phase) * 0.12 * ex;
-      p.rotation.set(u.baseRot.x + u.spin.x * ex, u.baseRot.y + u.spin.y * ex + wob * (i % 2 ? 1 : -1), u.baseRot.z + u.spin.z * ex);
+      p.rotation.set(u.spin.x * ex, u.spin.y * ex + wob * (i % 2 ? 1 : -1), u.spin.z * ex);
     });
 
     // сетка / материал / скан
@@ -418,12 +550,10 @@ function init() {
       const W = innerWidth, H = innerHeight;
       const sx = clamp(Math.round(r.left + r.width * TD.state.splitEff), 0, W);
       renderer.setScissorTest(true);
-      // слева — сетка
       solids.forEach(m => { m.visible = false; });
       wireMat.visible = true; shadow.visible = false;
       renderer.setScissor(0, 0, sx, H);
       renderer.render(scene, camera);
-      // справа — рендер
       solids.forEach(m => { m.visible = solidVisible; });
       wireMat.visible = false; shadow.visible = solidVisible;
       renderer.setScissor(sx, 0, W - sx, H);
@@ -434,11 +564,10 @@ function init() {
     }
   }
 
-  TD._dbg = { chair, solids, wireMat, sample, frames, camera, renderer, scene, parts };
-  // первый кадр — и страница может открываться
-  frame(0, 0.016);
+  TD._dbg = { chair, parts, solids, wireMat, sample, frames, camera, renderer, scene, mats, roleMean };
   TD.sceneFrame = frame;
-  TD.onReady();
+  // на мобильных первый экран без 3D — страницу открываем сразу, модель догрузится к разделу «Процесс»
+  if (isMobile) TD.onReady();
 }
 
 try {

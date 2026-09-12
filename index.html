@@ -123,6 +123,7 @@
       <aside class="hero__side" aria-hidden="true">3D studio&nbsp;&nbsp;·&nbsp;&nbsp;мебель&nbsp;&nbsp;·&nbsp;&nbsp;предметы&nbsp;&nbsp;·&nbsp;&nbsp;интерьеры</aside>
 
       <div class="hero__drag" id="heroDrag" data-cursor="drag" aria-hidden="true"></div>
+      <div class="hero__cube" aria-hidden="true"><div class="cube"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
 
       <div class="hero__content">
         <p class="hero__eyebrow">
@@ -288,25 +289,26 @@
 
       <div class="config__panel reveal">
         <div class="config__group">
-          <div class="config__label">Обивка <span id="fabricName">Лаванда · велюр</span></div>
+          <div class="config__label">Обивка <span id="fabricName">Коньяк · кожа</span></div>
           <div class="swatches" data-group="fabric" role="radiogroup" aria-label="Обивка">
-            <button class="swatch is-active" data-value="lavender" style="--c:#c3a6de" role="radio" aria-checked="true" aria-label="Лаванда, велюр"></button>
-            <button class="swatch" data-value="plum" style="--c:#4a1f45" role="radio" aria-checked="false" aria-label="Слива, велюр"></button>
-            <button class="swatch" data-value="milk" style="--c:#f1e5d6" role="radio" aria-checked="false" aria-label="Молоко, букле"></button>
-            <button class="swatch" data-value="graphite" style="--c:#2b2a2e" role="radio" aria-checked="false" aria-label="Графит, шерсть"></button>
-            <button class="swatch" data-value="ochre" style="--c:#b8742e" role="radio" aria-checked="false" aria-label="Охра, кожа"></button>
-            <button class="swatch" data-value="sage" style="--c:#7f9a86" role="radio" aria-checked="false" aria-label="Шалфей, лён"></button>
+            <button class="swatch is-active" data-value="cognac" style="--c:#7b4a2c" role="radio" aria-checked="true" aria-label="Коньяк, кожа"></button>
+            <button class="swatch" data-value="plum" style="--c:#4a1f45" role="radio" aria-checked="false" aria-label="Слива, кожа"></button>
+            <button class="swatch" data-value="milk" style="--c:#f1e5d6" role="radio" aria-checked="false" aria-label="Молоко, кожа"></button>
+            <button class="swatch" data-value="graphite" style="--c:#2b2a2e" role="radio" aria-checked="false" aria-label="Графит, кожа"></button>
+            <button class="swatch" data-value="sage" style="--c:#7f9a86" role="radio" aria-checked="false" aria-label="Шалфей, кожа"></button>
+            <button class="swatch" data-value="lavender" style="--c:#c3a6de" role="radio" aria-checked="false" aria-label="Лаванда, кожа"></button>
           </div>
         </div>
         <div class="config__group">
-          <div class="config__label">Ножки <span id="legsName">Латунь</span></div>
-          <div class="swatches" data-group="legs" role="radiogroup" aria-label="Ножки">
-            <button class="swatch swatch--metal is-active" data-value="brass" style="--c:#cfa34e" role="radio" aria-checked="true" aria-label="Латунь"></button>
-            <button class="swatch swatch--metal" data-value="black" style="--c:#1a1a1a" role="radio" aria-checked="false" aria-label="Чёрный металл"></button>
-            <button class="swatch" data-value="oak" style="--c:#9c6b3c" role="radio" aria-checked="false" aria-label="Дуб"></button>
+          <div class="config__label">Каркас и база <span id="legsName">Орех и сталь</span></div>
+          <div class="swatches" data-group="legs" role="radiogroup" aria-label="Каркас и база">
+            <button class="swatch is-active" data-value="walnut" style="--c:#8a5a34" role="radio" aria-checked="true" aria-label="Орех и сталь"></button>
+            <button class="swatch" data-value="oak" style="--c:#d9b283" role="radio" aria-checked="false" aria-label="Светлый дуб"></button>
+            <button class="swatch swatch--metal" data-value="black" style="--c:#1a1a1a" role="radio" aria-checked="false" aria-label="Чёрный"></button>
+            <button class="swatch swatch--metal" data-value="brass" style="--c:#cfa34e" role="radio" aria-checked="false" aria-label="Орех и латунь"></button>
           </div>
         </div>
-        <p class="config__note">Формат для сайта — GLB / USDZ. Работает на iPhone, Android и в любом браузере.</p>
+        <p class="config__note">Настоящая 3D-модель прямо в браузере. Формат для сайта — GLB / USDZ, работает на iPhone, Android и в любом браузере.</p>
       </div>
     </section>
 
@@ -373,14 +375,15 @@
         <span class="label reveal">05 — Начать</span>
         <h2 class="h2 h2--xl reveal" data-split>Пришлите один предмет.</h2>
         <p class="lead reveal">Чертёж, фото или ссылку на карточку товара. Покажем, как он будет выглядеть в 3D, и посчитаем весь каталог.</p>
-        <!-- TODO: заменить контакты на реальные -->
         <div class="cta__actions reveal">
-          <a class="btn btn--lavender" href="https://t.me/threedimension" target="_blank" rel="noopener" data-cursor="link" data-magnet>
+          <a class="btn btn--lavender" href="https://t.me/ashseryoja" target="_blank" rel="noopener" data-cursor="link" data-magnet>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.6 18.7 19.5c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.9 8.8-8c.4-.3-.1-.5-.6-.2L6.6 13.4 1.9 12c-1-.3-1-1 .2-1.5L20.6 3.4c.9-.3 1.6.2 1.3 1.2z"/></svg>
             Написать в Telegram
           </a>
-          <a class="btn btn--ghost" href="https://wa.me/79990000000" target="_blank" rel="noopener" data-cursor="link" data-magnet>WhatsApp</a>
-          <a class="btn btn--ghost" href="mailto:hello@threedimension.studio" data-cursor="link" data-magnet>hello@threedimension.studio</a>
+          <a class="btn btn--ghost" href="https://api.whatsapp.com/send?phone=37494351626&amp;text=" target="_blank" rel="noopener" data-cursor="link" data-magnet>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 1.8a8.2 8.2 0 0 1 0 16.4 8.1 8.1 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0 1 12 3.8zm-3.3 4.4c-.2 0-.5 0-.7.3-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.2 5 4.4 2.4 1 2.9.8 3.4.7.5 0 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3l-2-.9c-.3-.1-.5-.2-.7.1l-.9 1.1c-.2.2-.3.2-.6.1-.3-.2-1.2-.5-2.3-1.5-.9-.8-1.5-1.7-1.6-2-.2-.3 0-.4.1-.6l.4-.5.3-.5c.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.5z"/></svg>
+            WhatsApp
+          </a>
         </div>
       </div>
     </section>
